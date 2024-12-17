@@ -1,0 +1,44 @@
+﻿sources:
+  - name: binutils
+    subdir: 'ports'
+    version: '2.43'
+
+    url: 'https://ftp.gnu.org/gnu/binutils/binutils-2.43.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'binutils-2.43'
+    extract-strip: 1
+    patch-path-strip: 3
+
+  - name: gcc
+    subdir: 'ports'
+    version: '13.2.0'
+
+    url: 'https://ftp.gnu.org/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.xz'
+    format: 'tar.xz'
+    extract-strip: 1
+    extract-path: 'gcc-13.2.0'
+    patch-path-strip: 3
+
+    tools-required:
+      - host-autoconf-v2.69
+      - host-automake-v1.16
+    regenerate:
+      # download_prerequisites should probably move to some "post_checkout" step.
+      - args: ['./contrib/download_prerequisites']
+        workdir: '@THIS_SOURCE_DIR@'
+      - args: ['autoconf']
+        workdir: '@THIS_SOURCE_DIR@/gcc'
+      - args: ['autoconf']
+        workdir: '@THIS_SOURCE_DIR@/libstdc++-v3'
+      - args: ['sh', '-c', '"patch -p1 < @THIS_PATCHES_DIR@/extra_patches/gcc.patch"']
+        workdir: '@THIS_SOURCE_DIR@'
+
+  - name: mlibc
+    subdir: 'ports'
+    version: '5.0'
+
+    git: 'https://github.com/rozjin/mlibc'
+    branch: 'release-5.0'
+    tag: 'hades'
+
+    extract-path: 'mlibc-release-5.0'

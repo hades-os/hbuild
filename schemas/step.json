@@ -1,0 +1,38 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://hades.org/hbuild/step",
+    "title": "Step",
+    "description": "hbuild step",
+
+    "type": "object",
+    "properties": {
+        "args": {
+            "description": "Step args and command",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "minItems": 1
+        },
+
+        "workdir": {
+            "description": "Step workdir",
+            "type": "string"
+        },
+
+        "environ": {
+            "description": "Step environment  variables",
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            }
+        },
+
+        "shell": {
+            "description": "Execute in a shell",
+            "type": "boolean"
+        }
+    },
+
+    "required": ["args"]
+}

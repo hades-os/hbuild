@@ -1,0 +1,83 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://hades.org/hbuild/stage",
+    "title": "Build stage",
+    "description": "hbuild build stage",
+    
+    "type": "object",
+    "properties": {
+        "name": {
+            "description": "Build stage name",
+            "type": "string"
+        },
+
+        "tools-required": {
+            "description": "Required tools to build this tool",
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    { "type": "string" },
+                    { 
+                        "type": "object",
+                        "properties": {
+                            "stage-dependencies": {
+                               "description": "Stage specific dependencies",
+                               "type": "array",
+                               "items": { "type": "string" },
+                               "minItems": 1,
+                               "uniqueItems": true
+                            }
+                       }
+                    }
+                ]   
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        
+        "pkgs-required": {
+            "description": "Required packages to generate this strage",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+
+        "configure": {
+            "description": "Configure step for stage",
+            "type": "array",
+            "items": {
+                "$ref": "/hbuild/step"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        "compile": {
+            "description": "Compile step for stage",
+            "type": "array",
+            "items": {
+                "$ref": "/hbuild/step"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        "install": {
+            "description": "Install step for stage",
+            "type": "array",
+            "items": {
+                "$ref": "/hbuild/step"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        }        
+    },
+
+    "required": ["name"],
+    "anyOf": [
+        { "required": ["configure"] },
+        { "required": ["compile"] },
+        { "required": ["install"] }
+    ]
+}

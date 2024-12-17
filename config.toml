@@ -1,0 +1,17 @@
+[hbuild]
+schema_dir = "schemas"
+sources_yml = "sources.yml"
+tools_yml = "tools.yml"
+packages_yml = "packages.yml"
+
+sources_dir = "sources"
+tools_dir = "tools"
+packages_dir = "packages"
+builds_dir = "builds"
+
+patches_dir = "patches"
+
+[hbuild.system]
+target = "x86_64-hades"
+files = "system_files"
+prefix = "system_prefix"

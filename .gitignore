@@ -1,0 +1,10 @@
+.vscode
+
+/builds/
+/tools/
+/sources/
+/packages/
+/system_files/
+/system_prefix/
+
+**__pycache__**

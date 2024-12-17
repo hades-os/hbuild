@@ -1,0 +1,102 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://hades.org/hbuild/tool",
+    "title": "Tool",
+    "description": "hbuild tool",
+    "type": "object",
+    "properties": {
+        "name": {
+            "description": "Tool package name",
+            "type": "string"
+        },
+
+        "version": {
+            "description": "Tool package version",
+            "type": "string"
+        },
+
+        "from_source": {
+            "description": "Build it from a preexisting source",
+            "type": "string"
+        },
+        "source": {
+            "$ref": "/hbuild/source"
+        },
+
+        "tools-required": {
+            "description": "Required tools to build this tool",
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    { "type": "string" },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "stage-dependencies": {
+                               "description": "Stage specific dependencies",
+                               "type": "array",
+                               "items": { "type": "string" },
+                               "minItems": 1,
+                               "uniqueItems": true
+                            }
+                       }
+                    }
+                ]
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        "pkgs-required": {
+            "description": "Required packages to build this tool",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+
+        "configure": {
+            "description": "Configure step for tool or package",
+            "type": "array",
+            "items": {
+                "$ref": "/hbuild/step"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        "compile": {
+            "description": "Compile step for tool or package",
+            "type": "array",
+            "items": {
+                "$ref": "/hbuild/step"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        "install": {
+            "description": "Install step for tool or package",
+            "type": "array",
+            "items": {
+                "$ref": "/hbuild/step"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+
+        "stages": {
+            "description": "Tool build stages",
+            "type": "array",
+            "items": {
+                "$ref": "/hbuild/stage"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        }
+    },
+
+    "required": ["version"],
+
+    "if": { "required": ["from_source"] },
+    "then": { "not": { "required": ["source"] } }
+}
