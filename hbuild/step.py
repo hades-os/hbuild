@@ -29,11 +29,11 @@ class Step:
             self.environ: dict[str, str] = {}
 
         if "shell" in source_properties:
-            self.shell = True
+            self.shell = source_properties["shell"]
         else:
             self.shell = False
 
-    def do_substitutions(self, system_prefix, system_target,  source_dir, build_dir, system_dir):
+    def do_substitutions(self, system_prefix, system_target,  sources_dir, build_dir, collect_dir, system_dir):
         replaced_args = []
         replaced_environ: dict[str, str]= {}
         if self.workdir_type == StepWorkdirType.BUILDDIR:
@@ -41,10 +41,10 @@ class Step:
         else:
             replaced_workdir = self.workdir
 
-        source_dir = os.path.join(source_dir, self.package.source_dir)
-        source_root = source_dir
+        source_dir = os.path.join(sources_dir, self.package.source_dir)
+        source_root = sources_dir
 
-        collect_dir = os.path.join(build_dir, self.package.dir)
+        this_collect_dir = os.path.join(collect_dir, self.package.dir)
 
         sysroot_dir = system_dir
         prefix_dir = system_prefix
@@ -53,7 +53,7 @@ class Step:
 
         for arg in self.args:
             arg = arg.replace("@THIS_SOURCE_DIR@", source_dir)
-            arg = arg.replace("@THIS_COLLECT_DIR@", collect_dir)
+            arg = arg.replace("@THIS_COLLECT_DIR@", this_collect_dir)
 
             arg = arg.replace("@SOURCE_ROOT@", source_root)
             arg = arg.replace("@SYSROOT_DIR@", sysroot_dir)
@@ -66,7 +66,7 @@ class Step:
 
         for env_var, env_val in self.environ.items():
             env_val = env_val.replace("@THIS_SOURCE_DIR@", source_dir)
-            env_val = env_val.replace("@THIS_COLLECT_DIR@", collect_dir)
+            env_val = env_val.replace("@THIS_COLLECT_DIR@", this_collect_dir)
 
             env_val = env_val.replace("@SOURCE_ROOT@", source_root)
             env_val = env_val.replace("@SYSROOT_DIR@", sysroot_dir)
@@ -78,7 +78,7 @@ class Step:
             replaced_environ[env_var] = env_val     
 
         replaced_workdir = replaced_workdir.replace("@THIS_SOURCE_DIR@", source_dir)
-        replaced_workdir = replaced_workdir.replace("@THIS_COLLECT_DIR@", collect_dir)
+        replaced_workdir = replaced_workdir.replace("@THIS_COLLECT_DIR@", this_collect_dir)
 
         replaced_workdir = replaced_workdir.replace("@SOURCE_ROOT@", source_root)
         replaced_workdir = replaced_workdir.replace("@SYSROOT_DIR@", sysroot_dir)
@@ -88,15 +88,17 @@ class Step:
         replaced_workdir = replaced_workdir.replace("@PARALLELISM@", str(parallelism))
 
         if "PATH" in replaced_environ:
-            replaced_environ['PATH'] = f"{replaced_environ['PATH']}:{collect_dir}:$PATH"
+            replaced_environ['PATH'] = f"{prefix_dir}/bin:{replaced_environ['PATH']}:{os.environ['PATH']}"
         else:
-            replaced_environ['PATH'] = f"{collect_dir}:$PATH"
+            replaced_environ['PATH'] = f"{prefix_dir}/bin:{os.environ['PATH']}"
+
+        replaced_environ['ACLOCAL_PATH'] = f"{prefix_dir}/share/aclocal"
 
         return replaced_args, replaced_environ, replaced_workdir
 
-    def exec(self, system_prefix, system_target,  source_dir, build_dir, system_dir):
-        args, environ, workdir = self.do_substitutions(system_prefix, system_target, source_dir, build_dir, system_dir)
-        
+    def exec(self, system_prefix, system_target,  sources_dir, build_dir, collect_dir, system_dir):
+        args, environ, workdir = self.do_substitutions(system_prefix, system_target, sources_dir, build_dir, collect_dir, system_dir)
+
         res = subprocess.run(args, env = environ, cwd = workdir, shell = self.shell, 
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
         

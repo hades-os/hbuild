@@ -182,9 +182,10 @@ class SourcePackage:
 
             extract_bar = progress.add_task("[red] Extracting...", totla = total_bytes)
 
-            if self.format == 'tar.xz':
+            if self.format == 'tar.xz' or self.format == 'tar.gz':
                 with tarfile.open(os.path.join(sources_dir, output_file)) as tar:
                     tar.extractall(path=os.path.join(sources_dir, self.dir), members = track_progress(tar))
+
             progress.stop_task(extract_bar)
 
     def apply_patches(self, sources_dir,  patches_dir):
@@ -208,11 +209,11 @@ class SourcePackage:
     def prepare(self, sources_dir, system_prefix, patches_dir):
         self.acquire(sources_dir)
         self.extract(sources_dir)
-        self.apply_patches(sources_dir, patches_dir)
+#        self.apply_patches(sources_dir, patches_dir)
 
     def regenerate(self, sources_dir, system_dir, system_prefix, system_target):
         for step in self.regenerate_steps:
-            step.exec(system_prefix, system_target, sources_dir, sources_dir, system_dir)
+            step.exec(system_prefix, system_target, sources_dir, sources_dir, sources_dir, system_dir)
 
     def __str__(self):
         return f"Source {self.name}[{self.version}]"

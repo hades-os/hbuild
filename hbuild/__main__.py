@@ -1,7 +1,5 @@
-import copy
 import json
 import os
-import pickle
 import re
 import toml
 import yaml
@@ -27,7 +25,6 @@ from .package import Package, PackageSourceType
 class HBuild:
     def __init__(self):
         self.load_config()
-        self.load_lock()
 
         self.registry = Registry()
 
@@ -53,11 +50,6 @@ class HBuild:
     def load_config(self) -> None:
         with open("config.toml") as f:
             self.config = toml.load(f)
-
-    def load_lock(self):
-        self.locks = {}
-        with open("hbuild.lock", 'rb+') as f:
-            self.locks = pickle.load(f)
 
     def load_schema(self, schema_file: str) -> object:
         with open(schema_file) as f:
@@ -128,10 +120,10 @@ class HBuild:
             source.make_dirs(self.sources_dir)
 
         for tool in self.tools:
-            tool.make_dirs(self.tools_dir)
+            tool.make_dirs(self.tools_dir, self.builds_dir)
 
         for package in self.packages:
-            package.make_dirs(self.packages_dir)
+            package.make_dirs(self.packages_dir, self.builds_dir)
 
     @property
     def package_names(self):
@@ -366,8 +358,8 @@ class HBuild:
 
         rich_print(self.print_tree)
 
-#        visual = graphviz_draw(self.dep_graph, node_attr_fn=lambda node: { "label": str(node) })
-#        visual.show()
+        # visual = graphviz_draw(self.dep_graph, node_attr_fn=lambda node: { "label": str(node) })
+        # visual.show()
 
     def build_source(self, package: SourcePackage):
         package.prepare(self.sources_dir, self.system_prefix, self.patches_dir)
@@ -375,37 +367,40 @@ class HBuild:
 
     def build_tool(self, package: ToolPackage, stage: str):
         if stage is not None:
-            package.configure(self.sources_dir, self.tools_dir,
+            package.configure(self.sources_dir, self.builds_dir, self.tools_dir,
                 self.system_prefix, self.system_target, self.system_dir, stage)
 
-            package.compile(self.sources_dir, self.tools_dir,
+            package.compile(self.sources_dir, self.builds_dir, self.tools_dir,
                 self.system_prefix, self.system_target, self.system_dir, stage)
 
-            package.install(self.sources_dir, self.tools_dir,
+            package.install(self.sources_dir, self.builds_dir, self.tools_dir,
                 self.system_prefix, self.system_target, self.system_dir, stage)
         else:
-            package.configure(self.sources_dir, self.tools_dir,
+            package.configure(self.sources_dir, self.builds_dir, self.tools_dir,
                 self.system_prefix, self.system_target, self.system_dir, None)
 
-            package.compile(self.sources_dir, self.tools_dir,
+            package.compile(self.sources_dir, self.builds_dir, self.tools_dir,
                 self.system_prefix, self.system_target, self.system_dir, None)
 
-            package.install(self.sources_dir, self.tools_dir,
+            package.install(self.sources_dir, self.builds_dir, self.tools_dir,
                 self.system_prefix, self.system_target, self.system_dir, None)
 
     def build_system(self, package: Package, stage: str):
         if stage is not None:
-            package.configure(self.sources_dir, self.builds_dir,
+            package.configure(self.sources_dir, self.builds_dir, self.packages_dir,
                 self.system_prefix, self.system_target, self.system_dir, stage)
 
-            package.build(self.sources_dir, self.builds_dir,
+            package.build(self.sources_dir, self.builds_dir, self.packages_dir,
                 self.system_prefix, self.system_target, self.system_dir, stage)
         else:
-            package.configure(self.sources_dir, self.builds_dir,
+            package.configure(self.sources_dir, self.builds_dir, self.packages_dir,
                 self.system_prefix, self.system_target, self.system_dir, None)
 
-            package.build(self.sources_dir, self.builds_dir,
+            package.build(self.sources_dir, self.builds_dir, self.packages_dir,
                 self.system_prefix, self.system_target, self.system_dir, None)
+            
+        package.copy_system(self.packages_dir, self.system_dir)
+        package.make_deb(self.packages_dir, {dep: self.pkg_map[dep].version for dep in package.pkg_deps()})
             
     def build_package(self, name):
         print(f"Installing {name}")

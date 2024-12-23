@@ -35,6 +35,12 @@ class Stage:
             install_properties = source_properties["install"]
             for step in install_properties:
                 self.install_steps.append(Step(step, self))
+
+        self.build_steps: list[Step] = []
+        if "build" in source_properties:
+            build_properties = source_properties["build"]
+            for step in build_properties:
+                self.build_steps.append(Step(step, self))
     
     def deps(self):
         deps = []

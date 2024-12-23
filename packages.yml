@@ -7,7 +7,7 @@
       - args:
         - 'meson'
         - 'setup'
-        - '-Dprefix=/usr'
+        - '--prefix=/usr'
         - '-Dheaders_only=true'
         - '--cross-file'
         - '@SOURCE_ROOT@/cross_file.txt'
@@ -32,43 +32,36 @@
       - args:
         - 'meson'
         - 'setup'
-        - '-Dprefix=/usr'
         - '-Ddisable_libgcc_dependency=true'
         - '--buildtype=debugoptimized'
+        - '--prefix=/usr'
         - '--cross-file'
         - '@SOURCE_ROOT@/cross_file.txt'
 
         - '@THIS_SOURCE_DIR@'
         environ:
-          LDFLAGS: '-Wl,@THIS_SOURCE_DIR/binaries/libgcc-x86_64.a'
+          LDFLAGS: '-Wl,@THIS_SOURCE_DIR@/binaries/libgcc-x86_64.a'
     build:
       - args: ['ninja']
       - args: ['ninja', 'install']
         environ:
           DESTDIR: '@THIS_COLLECT_DIR@'
 
-#  - name: bash
-#    version: '5.1'
-#    source:
-#      name: 'bash-v5.1'
-#      subdir: 'ports'
-#      url: 'https://ftp.gnu.org/gnu/bash/bash-5.1.tar.gz'
-#      format: 'tar.gz'
-#      extract-strip: 1
-#      extract-path: 'bash-5.1'
-#      patch-path-strip: 3
-#    tools-required:
-#      - host-gcc
-#    configure:
-#      - args:
-#        - '@THIS_SOURCE_DIR@/configure'
-#        - '--host=@TARGET@'
-#        - '--prefix=/usr'
-#        - '--without-bash-malloc'
-#        - '--disable-nls'
-#    build:
-#      - args: ['make', '-j@PARALLELISM@']
-#      - args: ['make', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']
+  - name: bash
+    version: '5.2'
+    from_source: bash
+    tools-required:
+      - host-gcc
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--host=@TARGET@'
+        - '--prefix=/usr'
+        - '--without-bash-malloc'
+        - '--disable-nls'
+    build:
+      - args: ['make', '-j@PARALLELISM@']
+      - args: ['make', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']
 #
 #  - name: coreutils
 #    version: '8.32'

@@ -102,38 +102,37 @@ class ToolPackage:
         
         return deps
 
-    def make_dirs(self, tools_dir):
+    def make_dirs(self, tools_dir, builds_dir):
         os.makedirs(os.path.join(tools_dir, self.dir), exist_ok = True)
+        os.makedirs(os.path.join(builds_dir, self.dir), exist_ok = True)
 
-    def configure(self, sources_dir,  tools_dir, system_prefix, system_target, system_dir, stage_name: str = None):
+    def configure(self, sources_dir,  builds_dir, tools_dir, system_prefix, system_target, system_dir, stage_name: str = None):
         if stage_name is None:
             for step in self.configure_steps:
-                step.exec(system_prefix, system_target, sources_dir, tools_dir, system_dir)
+                step.exec(system_prefix, system_target, sources_dir, builds_dir, tools_dir, system_dir)
         else:
             stage = self.find_stage(stage_name)
-            
             for step in stage.configure_steps:
-                step.exec(system_prefix, system_target, sources_dir, tools_dir, system_dir)
+                step.exec(system_prefix, system_target, sources_dir, builds_dir, tools_dir, system_dir)
 
-    def compile(self, sources_dir,  tools_dir, system_prefix, system_target, system_dir, stage_name: str = None):
+    def compile(self, sources_dir,  builds_dir, tools_dir, system_prefix, system_target, system_dir, stage_name: str = None):
         if stage_name is None:
             for step in self.compile_steps:
-                step.exec(system_prefix, system_target, sources_dir, tools_dir, system_dir)
+                step.exec(system_prefix, system_target, sources_dir, builds_dir, tools_dir, system_dir)
         else:
             stage = self.find_stage(stage_name)
-            
             for step in stage.compile_steps:
-                step.exec(system_prefix, system_target, sources_dir, tools_dir, system_dir)
+                step.exec(system_prefix, system_target, sources_dir, builds_dir, tools_dir,system_dir)
 
-    def install(self, sources_dir,  tools_dir, system_prefix, system_target, system_dir, stage_name: str = None):
+    def install(self, sources_dir,  builds_dir, tools_dir, system_prefix, system_target, system_dir, stage_name: str = None):
         if stage_name is None:
             for step in self.install_steps:
-                step.exec(system_prefix, system_target, sources_dir, tools_dir, system_dir)
+                step.exec(system_prefix, system_target, sources_dir, builds_dir, tools_dir, system_dir)
         else:
             stage = self.find_stage(stage_name)
             
             for step in stage.install_steps:
-                step.exec(system_prefix, system_target, sources_dir, tools_dir, system_dir)
+                step.exec(system_prefix, system_target, sources_dir, builds_dir, tools_dir, system_dir)
 
     def __str__(self):
         return f"Tool {self.name}[{self.version}]"

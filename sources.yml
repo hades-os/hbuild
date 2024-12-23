@@ -3,25 +3,23 @@
     subdir: 'ports'
     version: '2.43'
 
-    url: 'https://ftp.gnu.org/gnu/binutils/binutils-2.43.tar.xz'
+    url: 'https://repo.hades-os.org/sources/binutils-v2.43.tar.xz'
     format: 'tar.xz'
-    extract-path: 'binutils-2.43'
+    extract-path: 'binutils-v2.43'
     extract-strip: 1
-    patch-path-strip: 3
 
   - name: gcc
     subdir: 'ports'
     version: '13.2.0'
 
-    url: 'https://ftp.gnu.org/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.xz'
+    url: 'https://repo.hades-os.org/sources/gcc-v13.2.0.tar.xz'
     format: 'tar.xz'
     extract-strip: 1
-    extract-path: 'gcc-13.2.0'
-    patch-path-strip: 3
+    extract-path: 'gcc-v13.2.0'
 
     tools-required:
-      - host-autoconf-v2.69
-      - host-automake-v1.16
+      - host-autoconf
+      - host-automake
     regenerate:
       # download_prerequisites should probably move to some "post_checkout" step.
       - args: ['./contrib/download_prerequisites']
@@ -30,15 +28,57 @@
         workdir: '@THIS_SOURCE_DIR@/gcc'
       - args: ['autoconf']
         workdir: '@THIS_SOURCE_DIR@/libstdc++-v3'
-      - args: ['sh', '-c', '"patch -p1 < @THIS_PATCHES_DIR@/extra_patches/gcc.patch"']
-        workdir: '@THIS_SOURCE_DIR@'
 
   - name: mlibc
     subdir: 'ports'
     version: '5.0'
 
-    git: 'https://github.com/rozjin/mlibc'
-    branch: 'release-5.0'
-    tag: 'hades'
+    url: 'https://repo.hades-os.org/sources/mlibc-v5.0.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'mlibc-v5.0'
+    extract-strip: 1
 
-    extract-path: 'mlibc-release-5.0'
+  - name: autoconf
+    subdir: 'ports'
+    version: '2.69'
+
+    url: 'https://repo.hades-os.org/sources/autoconf-v2.69.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'autoconf-v2.69'
+    extract-strip: 1
+
+  - name: automake
+    subdir: 'ports'
+    version: '1.16'
+
+    url: 'https://repo.hades-os.org/sources/automake-v1.16.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'automake-v1.16'
+    extract-strip: 1
+
+  - name: libtool
+    subdir: 'ports'
+    version: '2.4.6'
+
+    url: 'https://repo.hades-os.org/sources/libtool-v2.4.6.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'libtool-v2.4.6'
+    extract-strip: 1
+
+  - name: 'pkg-config'
+    subdir: 'ports'
+    version: '0.29.2'
+
+    url: 'https://repo.hades-os.org/sources/pkg-config-v0.29.2.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'pkg-config-v0.29.2'
+    extract-strip: 1
+
+  - name: 'bash'
+    subdir: 'ports'
+    version: '5.2'
+
+    url: 'https://repo.hades-os.org/sources/bash-v5.2.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'bash-v5.2'
+    extract-strip: 1

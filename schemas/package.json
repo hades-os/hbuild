@@ -23,6 +23,14 @@
             "$ref": "/hbuild/source"
         },
 
+        "debian": {
+            "description": "Debian control file information",
+            "type": "object",
+            "properties": {
+                
+            }
+        },
+
         "tools-required": {
             "description": "Required tools to build this package",
             "type": "array",
