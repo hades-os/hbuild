@@ -3,6 +3,14 @@
     version: '5.0'
     from_source: mlibc
     system-package: true
+    metadata:
+      summary: Managarm libc headers
+      description: This package provides the headers for the C standard library that Hades uses.
+      essential: true
+
+      website: 'https://github.com/managarm/mlibc'
+      maintainer: 'Yavuz Rao <yavuz.rao@gmail.com>'
+      section: core
     configure:
       - args:
         - 'meson'
@@ -26,6 +34,14 @@
       - tool: host-gcc
         stage-dependencies: [compiler]
     system-package: true
+    metadata:
+      summary: Managarm libc C library
+      description: This package provides the C standard library that Hades uses, this includes the dynamic loader and various utility libraries.
+      essential: true
+
+      website: 'https://github.com/managarm/mlibc'
+      maintainer: 'Yavuz Rao <yavuz.rao@gmail.com>'
+      section: core
     pkgs-required:
       - mlibc-headers
     configure:
@@ -50,6 +66,12 @@
   - name: bash
     version: '5.2'
     from_source: bash
+    metadata:
+      summary: The standard GNU Bourne again shell
+      description: This package provides the Bourne-Again SHell.
+      website: 'https://tiswww.case.edu/php/chet/bash/bashtop.html'
+      maintainer: 'Yavuz Rao <yavuz.rao@gmail.com>'
+      section: core
     tools-required:
       - host-gcc
     configure:

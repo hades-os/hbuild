@@ -23,11 +23,42 @@
             "$ref": "/hbuild/source"
         },
 
-        "debian": {
-            "description": "Debian control file information",
+        "system-package": {
+            "description": "Implicit system dependency",
+            "type": "boolean"
+        },
+
+        "metadata": {
+            "description": "Package metadata for dpkg",
             "type": "object",
             "properties": {
-                
+                "summary": {
+                    "description": "Package information summary",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "Package description",
+                    "type": "string"
+                },
+
+                "essential": {
+                    "description": "Essential system package",
+                    "type": "boolean"
+                },        
+
+                "website": {
+                    "description": "Package website",
+                    "type": "string"
+                },
+                "maintainer": {
+                    "description": "Package maintainer information",
+                    "type": "string"
+                },
+
+                "section": {
+                    "description": "Package type section",
+                    "type": "string"
+                }
             }
         },
 
@@ -94,7 +125,7 @@
         }
     },
 
-    "required": ["version"],
+    "required": ["version", "metadata"],
 
     "if": { "required": ["from_source"] },
     "then": { "not": { "required": ["source"] } }

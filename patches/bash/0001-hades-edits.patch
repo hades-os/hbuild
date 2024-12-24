@@ -1,7 +1,7 @@
-diff -Naur ../bash-v5.2-orig/builtins/psize.c ./builtins/psize.c
---- ../bash-v5.2-orig/builtins/psize.c	2024-12-23 12:02:04.657471036 -0500
-+++ ./builtins/psize.c	2024-12-23 11:57:41.302672621 -0500
-@@ -21,25 +21,12 @@
+diff -Naur ../bash-5.2-orig/builtins/psize.c ./builtins/psize.c
+--- ../bash-5.2-orig/builtins/psize.c	2024-12-24 00:06:55.883169866 -0500
++++ ./builtins/psize.c	2024-12-24 00:12:24.367547363 -0500
+@@ -21,33 +21,14 @@
  /*  Write output in 128-byte chunks until we get a sigpipe or write gets an
      EPIPE.  Then report how many bytes we wrote.  We assume that this is the
      pipe size. */
@@ -14,22 +14,23 @@ diff -Naur ../bash-v5.2-orig/builtins/psize.c ./builtins/psize.c
 -#  include <unistd.h>
 -#endif
 -
- #include <stdio.h>
+-#include <stdio.h>
 -#ifndef _MINIX
 -#include "../bashtypes.h"
 -#endif
-+#include <stdlib.h>
  #include <signal.h>
- #include <errno.h>
- 
+-#include <errno.h>
+-
 -#include "../command.h"
 -#include "../general.h"
 -#include "../sig.h"
+-
+-#ifndef errno
+-extern int errno;
+-#endif
++#include <stdio.h>
++#include <stdlib.h>
 +#include <unistd.h>
- 
- #ifndef errno
- extern int errno;
-@@ -47,7 +34,7 @@
  
  int nw;
  
@@ -38,22 +39,18 @@ diff -Naur ../bash-v5.2-orig/builtins/psize.c ./builtins/psize.c
  sigpipe (sig)
       int sig;
  {
-diff -Naur ../bash-v5.2-orig/lib/readline/terminal.c ./lib/readline/terminal.c
---- ../bash-v5.2-orig/lib/readline/terminal.c	2024-12-23 12:02:04.493469288 -0500
-+++ ./lib/readline/terminal.c	2024-12-23 12:03:58.938690487 -0500
-@@ -103,7 +103,7 @@
- static int tcap_initialized;
+diff -Naur ../bash-5.2-orig/lib/termcap/termcap.c ./lib/termcap/termcap.c
+--- ../bash-5.2-orig/lib/termcap/termcap.c	2024-12-24 00:06:55.819169818 -0500
++++ ./lib/termcap/termcap.c	2024-12-24 00:20:58.826387651 -0500
+@@ -19,6 +19,7 @@
+ */
  
- #if !defined (__linux__) && !defined (NCURSES_VERSION)
--#  if defined (__EMX__) || defined (NEED_EXTERN_PC)
-+#  if defined (__EMX__) || defined(__hades__) || defined (NEED_EXTERN_PC)
- extern 
- #  endif /* __EMX__ || NEED_EXTERN_PC */
- char PC, *BC, *UP;
-diff -Naur ../bash-v5.2-orig/lib/termcap/termcap.c ./lib/termcap/termcap.c
---- ../bash-v5.2-orig/lib/termcap/termcap.c	2024-12-23 12:02:04.517469544 -0500
-+++ ./lib/termcap/termcap.c	2024-12-23 12:04:23.590953855 -0500
-@@ -630,7 +630,7 @@
+ /* Emacs config.h may rename various library functions such as malloc.  */
++#include <stdio.h>
+ #ifdef HAVE_CONFIG_H
+ 
+ #include <config.h>
+@@ -630,7 +631,7 @@
    bufp->ateof = 0;
    *bufp->ptr = '\0';
  
@@ -62,10 +59,10 @@ diff -Naur ../bash-v5.2-orig/lib/termcap/termcap.c ./lib/termcap/termcap.c
  
    while (!bufp->ateof)
      {
-diff -Naur ../bash-v5.2-orig/mksyntax.c ./mksyntax.c
---- ../bash-v5.2-orig/mksyntax.c	2024-12-23 12:02:04.637470823 -0500
-+++ ./mksyntax.c	2024-12-23 12:05:47.015845817 -0500
-@@ -20,16 +20,13 @@
+diff -Naur ../bash-5.2-orig/mksyntax.c ./mksyntax.c
+--- ../bash-5.2-orig/mksyntax.c	2024-12-24 00:06:55.867169854 -0500
++++ ./mksyntax.c	2024-12-24 00:13:44.532306206 -0500
+@@ -20,30 +20,19 @@
     along with Bash.  If not, see <http://www.gnu.org/licenses/>.
  */
  
@@ -84,17 +81,21 @@ diff -Naur ../bash-v5.2-orig/mksyntax.c ./mksyntax.c
  
  #include "syntax.h"
  
-@@ -40,9 +37,7 @@
- extern int errno;
- #endif
+ extern int optind;
+ extern char *optarg;
  
--#ifndef HAVE_STRERROR
- extern char *strerror();
+-#ifndef errno
+-extern int errno;
 -#endif
- 
+-
+-#ifndef HAVE_STRERROR
+-extern char *strerror();
+-#endif
+-
  struct wordflag {
  	int	flag;
-@@ -374,42 +369,4 @@
+ 	char	*fstr;
+@@ -374,42 +363,4 @@
    if (fp != stdout)
      fclose (fp);
    exit (0);
@@ -139,9 +140,9 @@ diff -Naur ../bash-v5.2-orig/mksyntax.c ./mksyntax.c
 -#endif /* HAVE_STRERROR */
 +}
 \ No newline at end of file
-diff -Naur ../bash-v5.2-orig/shell.c ./shell.c
---- ../bash-v5.2-orig/shell.c	2024-12-23 12:02:04.617470610 -0500
-+++ ./shell.c	2024-12-23 12:06:36.944380113 -0500
+diff -Naur ../bash-5.2-orig/shell.c ./shell.c
+--- ../bash-5.2-orig/shell.c	2024-12-24 00:06:55.855169845 -0500
++++ ./shell.c	2024-12-24 00:21:36.514377318 -0500
 @@ -1647,7 +1647,7 @@
  #endif
  
@@ -160,13 +161,14 @@ diff -Naur ../bash-v5.2-orig/shell.c ./shell.c
      }
  
    /* Open the script.  But try to move the file descriptor to a randomly
-diff -Naur ../bash-v5.2-orig/support/bashversion.c ./support/bashversion.c
---- ../bash-v5.2-orig/support/bashversion.c	2024-12-23 12:02:04.521469586 -0500
-+++ ./support/bashversion.c	2024-12-23 12:07:04.312673120 -0500
-@@ -18,15 +18,12 @@
+diff -Naur ../bash-5.2-orig/support/bashversion.c ./support/bashversion.c
+--- ../bash-5.2-orig/support/bashversion.c	2024-12-24 00:06:55.819169818 -0500
++++ ./support/bashversion.c	2024-12-24 00:14:27.644114325 -0500
+@@ -17,16 +17,12 @@
+    You should have received a copy of the GNU General Public License
     along with Bash.  If not, see <http://www.gnu.org/licenses/>.
  */
- 
+-
 -#include "config.h"
 -
  #include "stdc.h"
@@ -181,30 +183,21 @@ diff -Naur ../bash-v5.2-orig/support/bashversion.c ./support/bashversion.c
  
  #include "bashansi.h"
  
-diff -Naur ../bash-v5.2-orig/support/config.sub ./support/config.sub
---- ../bash-v5.2-orig/support/config.sub	2024-12-23 12:02:04.521469586 -0500
-+++ ./support/config.sub	2024-12-23 12:07:31.392963132 -0500
-@@ -1740,7 +1740,7 @@
- 	     | bosx* | nextstep* | cxux* | aout* | elf* | oabi* \
- 	     | ptx* | coff* | ecoff* | winnt* | domain* | vsta* \
- 	     | udi* | lites* | ieee* | go32* | aux* | hcos* \
--	     | chorusrdb* | cegcc* | glidix* | serenity* \
-+	     | chorusrdb* | cegcc* | glidix* | hades* | serenity* \
- 	     | cygwin* | msys* | pe* | moss* | proelf* | rtems* \
- 	     | midipix* | mingw32* | mingw64* | mint* \
- 	     | uxpv* | beos* | mpeix* | udk* | moxiebox* \
-diff -Naur ../bash-v5.2-orig/support/man2html.c ./support/man2html.c
---- ../bash-v5.2-orig/support/man2html.c	2024-12-23 12:02:04.521469586 -0500
-+++ ./support/man2html.c	2024-12-23 12:08:32.269615373 -0500
-@@ -16,7 +16,7 @@
-  * ^^^
-  * Recognition           Item            Link
-  * ----------------------------------------------------------
-- * name(*)               Manpage         ../man?/name.*
-+ * name(*)               Manpage         ../man?/name.*a
-  *     ^
-  * name@hostname         Email address   mailto:name@hostname
-  *     ^
+diff -Naur ../bash-5.2-orig/support/config.sub ./support/config.sub
+--- ../bash-5.2-orig/support/config.sub	2024-12-24 00:06:55.819169818 -0500
++++ ./support/config.sub	2024-12-24 00:20:17.422402229 -0500
+@@ -1728,7 +1728,7 @@
+ 	     | hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris* \
+ 	     | sym* |  plan9* | psp* | sim* | xray* | os68k* | v88r* \
+ 	     | hiux* | abug | nacl* | netware* | windows* \
+-	     | os9* | macos* | osx* | ios* \
++	     | os9* | macos* | osx* | ios* | hades* \
+ 	     | mpw* | magic* | mmixware* | mon960* | lnews* \
+ 	     | amigaos* | amigados* | msdos* | newsos* | unicos* | aof* \
+ 	     | aos* | aros* | cloudabi* | sortix* | twizzler* \
+diff -Naur ../bash-5.2-orig/support/man2html.c ./support/man2html.c
+--- ../bash-5.2-orig/support/man2html.c	2024-12-24 00:06:55.819169818 -0500
++++ ./support/man2html.c	2024-12-24 00:15:11.055276557 -0500
 @@ -62,10 +62,6 @@
   *    that all these features work on all manpages. (I didn't have the
   *    time to look through all the available manpages.)
@@ -216,20 +209,38 @@ diff -Naur ../bash-v5.2-orig/support/man2html.c ./support/man2html.c
  #define NROFF 0
  
  #include <unistd.h>
-@@ -123,8 +119,7 @@
+@@ -123,27 +119,6 @@
  #define BD_LITERAL  1
  #define BD_INDENT   2
  
 -#ifndef HAVE_STRERROR
 -static char *
-+#if (0)
- strerror(int e)
+-strerror(int e)
+-{
+-	static char emsg[40];
+-
+-#if defined (HAVE_SYS_ERRLIST)
+-	extern int sys_nerr;
+-	extern char *sys_errlist[];
+-
+-	if (e > 0 && e < sys_nerr)
+-		return (sys_errlist[e]);
+-	else
+-#endif				/* HAVE_SYS_ERRLIST */
+-	{
+-		sprintf(emsg, "Unknown system error %d", e);
+-		return (&emsg[0]);
+-	}
+-}
+-#endif				/* !HAVE_STRERROR */
+-
+ static char *
+ strgrow(char *old, int len)
  {
- 	static char emsg[40];
-diff -Naur ../bash-v5.2-orig/support/mksignames.c ./support/mksignames.c
---- ../bash-v5.2-orig/support/mksignames.c	2024-12-23 12:02:04.525469629 -0500
-+++ ./support/mksignames.c	2024-12-23 12:08:47.185775244 -0500
-@@ -18,9 +18,6 @@
+diff -Naur ../bash-5.2-orig/support/mksignames.c ./support/mksignames.c
+--- ../bash-5.2-orig/support/mksignames.c	2024-12-24 00:06:55.819169818 -0500
++++ ./support/mksignames.c	2024-12-24 00:16:05.286787255 -0500
+@@ -18,18 +18,11 @@
     You should have received a copy of the GNU General Public License
     along with Bash.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -239,10 +250,20 @@ diff -Naur ../bash-v5.2-orig/support/mksignames.c ./support/mksignames.c
  #include <sys/types.h>
  #include <signal.h>
  
-diff -Naur ../bash-v5.2-orig/support/signames.c ./support/signames.c
---- ../bash-v5.2-orig/support/signames.c	2024-12-23 12:02:04.525469629 -0500
-+++ ./support/signames.c	2024-12-23 12:08:55.381863100 -0500
-@@ -17,9 +17,6 @@
+ #include <stdio.h>
+-#if defined (HAVE_STDLIB_H)
+-#  include <stdlib.h>
+-#else
+-#  include "ansi_stdlib.h"
+-#endif /* HAVE_STDLIB_H */
++#include <stdlib.h>
+ 
+ /* Duplicated from signames.c */
+ #if !defined (NSIG)
+diff -Naur ../bash-5.2-orig/support/signames.c ./support/signames.c
+--- ../bash-5.2-orig/support/signames.c	2024-12-24 00:06:55.819169818 -0500
++++ ./support/signames.c	2024-12-24 00:16:32.922659755 -0500
+@@ -17,19 +17,12 @@
     You should have received a copy of the GNU General Public License
     along with Bash.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -252,3 +273,14 @@ diff -Naur ../bash-v5.2-orig/support/signames.c ./support/signames.c
  #include <stdio.h>
  
  #include <sys/types.h>
+ #include <signal.h>
+ 
+-#if defined (HAVE_STDLIB_H)
+-#  include <stdlib.h>
+-#else
+-#  include "ansi_stdlib.h"
+-#endif /* HAVE_STDLIB_H */
++#include <stdlib.h>
+ 
+ #if !defined (NSIG)
+ #  define NSIG 64

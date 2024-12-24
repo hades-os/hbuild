@@ -20,11 +20,6 @@
             "type": "string"
         },
 
-        "system-package": {
-            "description": "Core system package (libc)",
-            "type": "boolean"
-        },
-        
         "rolling-version": {
             "description": "Source package has rolling version",
             "type": "boolean"
