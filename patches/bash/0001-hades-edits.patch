@@ -59,6 +59,24 @@ diff -Naur ../bash-5.2-orig/lib/termcap/termcap.c ./lib/termcap/termcap.c
  
    while (!bufp->ateof)
      {
+diff -Naur ../bash-v5.2/lib/readline/terminal.c ./lib/readline/terminal.c
+--- ../bash-v5.2/lib/readline/terminal.c        2022-04-05 10:44:17.000000000 -0400
++++ ./lib/readline/terminal.c   2024-12-24 18:22:30.341532747 -0500
+@@ -101,13 +101,7 @@
+ #endif
+ 
+ static int tcap_initialized;
+-
+-#if !defined (__linux__) && !defined (NCURSES_VERSION)
+-#  if defined (__EMX__) || defined (NEED_EXTERN_PC)
+-extern 
+-#  endif /* __EMX__ || NEED_EXTERN_PC */
+-char PC, *BC, *UP;
+-#endif /* !__linux__ && !NCURSES_VERSION */
++extern char PC, *BC, *UP;
+ 
+ /* Some strings to control terminal actions.  These are output by tputs (). */
+ char *_rl_term_clreol;
 diff -Naur ../bash-5.2-orig/mksyntax.c ./mksyntax.c
 --- ../bash-5.2-orig/mksyntax.c	2024-12-24 00:06:55.867169854 -0500
 +++ ./mksyntax.c	2024-12-24 00:13:44.532306206 -0500

@@ -9,7 +9,7 @@
       essential: true
 
       website: 'https://github.com/managarm/mlibc'
-      maintainer: 'Yavuz Rao <yavuz.rao@gmail.com>'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
       section: core
     configure:
       - args:
@@ -40,7 +40,7 @@
       essential: true
 
       website: 'https://github.com/managarm/mlibc'
-      maintainer: 'Yavuz Rao <yavuz.rao@gmail.com>'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
       section: core
     pkgs-required:
       - mlibc-headers
@@ -70,7 +70,7 @@
       summary: The standard GNU Bourne again shell
       description: This package provides the Bourne-Again SHell.
       website: 'https://tiswww.case.edu/php/chet/bash/bashtop.html'
-      maintainer: 'Yavuz Rao <yavuz.rao@gmail.com>'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
       section: core
     tools-required:
       - host-gcc
