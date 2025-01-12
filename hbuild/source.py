@@ -10,6 +10,7 @@ import git
 from git import RemoteProgress
 
 import pathlib
+import shutil
 
 import tarfile
 from tarfile import TarInfo
@@ -24,7 +25,8 @@ class SourceType(Enum):
     GIT = 2
 
 class CloneType(Enum):
-    COMMIT = 1
+    COMMIT = 0
+    BRANCH = 1
     TAG = 2
 
 class CloneProgress(RemoteProgress):
@@ -109,15 +111,15 @@ class SourcePackage:
 
             if "branch" in source_properties:
                 self.branch = source_properties["branch"]
+                self.clone_type = CloneType.BRANCH
             else:
                 self.branch = "master"
-
-            if "commit" in source_properties:
-                self.clone_type = CloneType.COMMIT
-                self.commit = source_properties["commit"]
-            else:
-                self.clone_type = CloneType.TAG
-                self.tag = source_properties["tag"]
+                if "commit" in source_properties:
+                    self.clone_type = CloneType.COMMIT
+                    self.commit = source_properties["commit"]
+                else:
+                    self.clone_type = CloneType.TAG
+                    self.tag = source_properties["tag"]
 
         if "extract-path" in source_properties:
             self.extract_path = source_properties["extract-path"]
@@ -158,7 +160,7 @@ class SourcePackage:
                 repo = git.Repo.clone_from(self.git, os.path.join(sources_dir, self.dir), branch = self.branch, progress = clone_progress)
                 if self.clone_type == CloneType.COMMIT:
                     repo.git.checkout(self.commit)
-                else:
+                elif self.clone_type == CloneType.TAG:
                     repo.git.checkout(self.tag)
 
     def extract(self, sources_dir):
@@ -205,6 +207,10 @@ class SourcePackage:
 
     def make_dirs(self, sources_dir):
         os.makedirs(os.path.join(sources_dir, self.dir), exist_ok = True)
+
+    def clean_dirs(self, sources_dir):
+        if os.path.exists(os.path.join(sources_dir, self.dir)):
+            shutil.rmtree(os.path.join(sources_dir, self.dir))
 
     def prepare(self, sources_dir, system_prefix, patches_dir):
         self.acquire(sources_dir)

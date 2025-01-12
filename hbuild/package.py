@@ -33,6 +33,8 @@ class Package:
 
             self.source_dir = self.source.source_dir
 
+        self.metadata = source_properties["metadata"]
+
         if "system-package" in source_properties:
             self.system_package = True
         else:
@@ -42,7 +44,7 @@ class Package:
             self.tools_required = source_properties["tools-required"]
         else:
             self.tools_required = []
-        
+
         if "pkgs-required" in source_properties:
             self.pkgs_required = source_properties["pkgs-required"]
         else:
@@ -59,33 +61,40 @@ class Package:
             build_properties = source_properties["build"]
             for step in build_properties:
                 self.build_steps.append(Step(step, self))
-                
+
         self.stages: list[Stage] = []
         if "stages" in source_properties:
             stages_properties = source_properties["stages"]
             for stage in stages_properties:
                 self.stages.append(Stage(stage, self))
-    
+
+        self.has_configured = False
+        self.has_built = False
+
+    @property
+    def num_stages(self):
+        return len(self.stages)
+
     @property
     def stage_deps(self):
         stage_deps = {}
         for stage in self.stages:
-            stage_deps[f"{self.name}[{stage.name}]"] = stage.deps()
-        
+            stage_deps[f"{self.name}[{stage.name}]"] = [*self.deps(), *stage.deps()]
+
         return stage_deps
 
     def find_stage(self, name):
         for stage in self.stages:
             if stage.name == name:
                 return stage
-        
+
         return None
-    
+
     def pkg_deps(self):
         deps = []
         for pkg in self.pkgs_required:
             deps.append(pkg)
-        
+
         return deps
 
     def deps(self):
@@ -116,25 +125,58 @@ class Package:
         os.makedirs(os.path.join(packages_dir, self.dir), exist_ok = True)
         os.makedirs(os.path.join(builds_dir, self.dir), exist_ok = True)
 
-    def configure(self, sources_dir,  builds_dir, packages_dir, system_prefix, system_target, system_dir, stage_name: str = None):
-        if stage_name is None:
-            for step in self.configure_steps:
-                step.exec(system_prefix, system_target, sources_dir, builds_dir, packages_dir, system_dir)
-        else:
-            stage = self.find_stage(stage_name)
-            
-            for step in stage.configure_steps:
-                step.exec(system_prefix, system_target, sources_dir, builds_dir, packages_dir, system_dir)
+    def prune_system(self, system_dir):
+        deleted = set()
+        for dir, subdirs, files in os.walk(system_dir, topdown=False):
+            still_has_subdirs = False
+            for subdir in subdirs:
+                if os.path.join(dir, subdir) not in deleted:
+                    still_has_subdirs = True
+                    break
 
-    def build(self, sources_dir,  builds_dir, packages_dir, system_prefix, system_target, system_dir, stage_name: str = None):
-        if stage_name is None:
+            if not any(files) and not still_has_subdirs:
+                os.rmdir(dir)
+                deleted.add(dir)
+
+    def clean_dirs(self, packages_dir, builds_dir, system_dir):
+        pkg_root_dir = os.path.join(packages_dir, self.dir)
+        pkg_files = []
+
+        for dir, _, files in os.walk(os.path.join(packages_dir, self.dir)):
+            for f in files:
+                f_path = os.path.join(dir, f)
+                if os.path.lexists(f_path):
+                    f_rel_path = os.path.relpath(f_path, pkg_root_dir)
+
+                    f_pkg_path = os.path.join(pkg_root_dir, f_rel_path)
+                    f_system_path =os.path.join(system_dir, f_rel_path)
+
+                    if os.path.lexists(f_pkg_path):
+                        os.unlink(f_pkg_path)
+
+                    if os.path.lexists(f_system_path):
+                        os.unlink(f_system_path)
+                        
+        if os.path.exists(os.path.join(builds_dir, self.dir)):
+            shutil.rmtree(os.path.join(builds_dir, self.dir))
+        if os.path.exists(os.path.join(packages_dir, self.dir)):
+            shutil.rmtree(os.path.join(packages_dir, self.dir))
+        self.prune_system(system_dir)
+
+    def configure(self, sources_dir,  builds_dir, packages_dir, system_prefix, system_target, system_dir):
+        for step in self.configure_steps:
+            step.exec(system_prefix, system_target, sources_dir, builds_dir, packages_dir, system_dir)
+        self.has_configured = True
+
+    def build(self, sources_dir,  builds_dir, packages_dir, system_prefix, system_target, system_dir, stage: Stage = None):
+        if stage is None:
             for step in self.build_steps:
                 step.exec(system_prefix, system_target, sources_dir, builds_dir, packages_dir, system_dir)
+            self.has_built = True
         else:
-            stage = self.find_stage(stage_name)
-            
             for step in stage.build_steps:
                 step.exec(system_prefix, system_target, sources_dir, builds_dir, packages_dir, system_dir)
+            stage.has_built = True
 
     def files_size(self, packages_dir):
             total_size = 0
@@ -145,7 +187,11 @@ class Package:
                     total_size += math.ceil(os.path.getsize(os.path.join(dir, file)) / 1024)
 
     def copy_system(self, packages_dir, system_dir):
-        subprocess.run(['cp', '-a', f"{os.path.join(packages_dir, self.dir)}/.", f"{system_dir}/"])
+        subprocess.run(['rsync', '-aq', '--exclude=DEBIAN',  f"{os.path.join(packages_dir, self.dir)}/", f"{system_dir}"])
+
+    def format_description(self):
+        return f"""Description: {self.metadata["summary"]}
+ {self.metadata["description"]}"""
 
     def make_control(self, packages_dir, deps_dict: dict[str, str]):
         if len(deps_dict) > 0:
@@ -154,7 +200,10 @@ class Package:
             return f"""Package: {self.name}
 Version: {self.version}
 Architecture: amd64
-Maintainer: Yavuz Rao <yavuz.rao@gmail.com>
+{self.format_description()}
+Section: {self.metadata["section"]}
+Maintainer: {self.metadata["maintainer"]}
+Homepage: {self.metadata["website"]}
 Installed-Size: {self.files_size(packages_dir)}
 Depends: {", ".join(deps)}
 """
@@ -162,7 +211,10 @@ Depends: {", ".join(deps)}
             return f"""Package: {self.name}
 Version: {self.version}
 Architecture: amd64
-Maintainer: Yavuz Rao <yavuz.rao@gmail.com>
+{self.format_description()}
+Section: {self.metadata["section"]}
+Maintainer: {self.metadata["maintainer"]}
+Homepage: {self.metadata["website"]}
 Installed-Size: {self.files_size(packages_dir)}
 """
 
@@ -177,6 +229,6 @@ Installed-Size: {self.files_size(packages_dir)}
 
     def __str__(self):
         return f"Package {self.name}[{self.version}]"
-    
+
     def __repr__(self):
         return self.__str__()

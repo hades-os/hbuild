@@ -1,0 +1,1 @@
+- fully clean tool packages (checkinstall type deal maybe?)

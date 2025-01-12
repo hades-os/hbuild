@@ -1,11 +1,28 @@
---- automake-v1.16/lib/config.sub	2024-12-21 20:15:13.328574127 -0500
-+++ automake-v1.16/lib/config.sub.new	2024-12-21 20:15:34.288569276 -0500
+diff -Naur ../automake-v1.16-orig/lib/config.sub ./lib/config.sub
+--- ../automake-v1.16-orig/lib/config.sub       2025-01-02 19:45:20.493145533 -0500
++++ ./lib/config.sub      2025-01-02 19:45:43.433298302 -0500
 @@ -1723,7 +1723,7 @@
- 	     | hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris* \
- 	     | sym* |  plan9* | psp* | sim* | xray* | os68k* | v88r* \
- 	     | hiux* | abug | nacl* | netware* | windows* \
--	     | os9* | macos* | osx* | ios* \
-+	     | os9* | macos* | osx* | ios*| hades* \
- 	     | mpw* | magic* | mmixware* | mon960* | lnews* \
- 	     | amigaos* | amigados* | msdos* | newsos* | unicos* | aof* \
- 	     | aos* | aros* | cloudabi* | sortix* | twizzler* \
+             | hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris* \
+             | sym* |  plan9* | psp* | sim* | xray* | os68k* | v88r* \
+             | hiux* | abug | nacl* | netware* | windows* \
+-            | os9* | macos* | osx* | ios* \
++            | os9* | macos* | osx* | ios* | hades* \
+             | mpw* | magic* | mmixware* | mon960* | lnews* \
+             | amigaos* | amigados* | msdos* | newsos* | unicos* | aof* \
+             | aos* | aros* | cloudabi* | sortix* | twizzler* \
+diff -Naur ../automake-v1.16-orig/lib/config.guess ./lib/config.guess
+--- ../automake-v1.16-orig/lib/config.guess     2025-01-02 19:45:20.493145533 -0500
++++ ./lib/config.guess    2025-01-02 19:46:55.425717672 -0500
+@@ -963,6 +963,12 @@
+        GNU_REL=`echo "$UNAME_RELEASE" | sed -e 's/[-(].*//'`
+        GUESS=$UNAME_MACHINE-unknown-$GNU_SYS$GNU_REL-$LIBC
+        ;;
++    x86_64:[Hh]ades:*:*|i?86:[Hh]ades:*:*)
++    GUESS="$UNAME_MACHINE-pc-hades"
++    ;;
++    *:[Hh]ades:*:*)
++    GUESS="$UNAME_MACHINE-unknown-hades"
++    ;;
+     *:Minix:*:*)
+        GUESS=$UNAME_MACHINE-unknown-minix
+        ;;

@@ -51,9 +51,20 @@ class Step:
 
         parallelism = self.cpu_count
 
+        replaced_workdir = replaced_workdir.replace("@THIS_SOURCE_DIR@", source_dir)
+        replaced_workdir = replaced_workdir.replace("@THIS_COLLECT_DIR@", this_collect_dir)
+
+        replaced_workdir = replaced_workdir.replace("@SOURCE_ROOT@", source_root)
+        replaced_workdir = replaced_workdir.replace("@SYSROOT_DIR@", sysroot_dir)
+
+        replaced_workdir = replaced_workdir.replace("@PREFIX@", prefix_dir)
+        replaced_workdir = replaced_workdir.replace("@TARGET@", system_target)
+        replaced_workdir = replaced_workdir.replace("@PARALLELISM@", str(parallelism))
+
         for arg in self.args:
             arg = arg.replace("@THIS_SOURCE_DIR@", source_dir)
             arg = arg.replace("@THIS_COLLECT_DIR@", this_collect_dir)
+            arg = arg.replace("@THIS_BUILD_DIR@", replaced_workdir)
 
             arg = arg.replace("@SOURCE_ROOT@", source_root)
             arg = arg.replace("@SYSROOT_DIR@", sysroot_dir)
@@ -67,6 +78,7 @@ class Step:
         for env_var, env_val in self.environ.items():
             env_val = env_val.replace("@THIS_SOURCE_DIR@", source_dir)
             env_val = env_val.replace("@THIS_COLLECT_DIR@", this_collect_dir)
+            env_val = env_val.replace("@THIS_BUILD_DIR@", replaced_workdir)
 
             env_val = env_val.replace("@SOURCE_ROOT@", source_root)
             env_val = env_val.replace("@SYSROOT_DIR@", sysroot_dir)
@@ -76,16 +88,6 @@ class Step:
             env_val = env_val.replace("@PARALLELISM@", str(parallelism))
 
             replaced_environ[env_var] = env_val     
-
-        replaced_workdir = replaced_workdir.replace("@THIS_SOURCE_DIR@", source_dir)
-        replaced_workdir = replaced_workdir.replace("@THIS_COLLECT_DIR@", this_collect_dir)
-
-        replaced_workdir = replaced_workdir.replace("@SOURCE_ROOT@", source_root)
-        replaced_workdir = replaced_workdir.replace("@SYSROOT_DIR@", sysroot_dir)
-
-        replaced_workdir = replaced_workdir.replace("@PREFIX@", prefix_dir)
-        replaced_workdir = replaced_workdir.replace("@TARGET@", system_target)
-        replaced_workdir = replaced_workdir.replace("@PARALLELISM@", str(parallelism))
 
         if "PATH" in replaced_environ:
             replaced_environ['PATH'] = f"{prefix_dir}/bin:{replaced_environ['PATH']}:{os.environ['PATH']}"

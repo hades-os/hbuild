@@ -1,0 +1,81 @@
+diff -Naur ../dpkg-v1.22.11-orig/build-aux/config.guess ./build-aux/config.guess
+--- ../dpkg-v1.22.11-orig/build-aux/config.guess        2024-12-28 02:27:45.272986374 -0500
++++ ./build-aux/config.guess    2024-12-28 02:29:44.357935476 -0500
+@@ -963,6 +963,12 @@
+        GNU_REL=`echo "$UNAME_RELEASE" | sed -e 's/[-(].*//'`
+        GUESS=$UNAME_MACHINE-unknown-$GNU_SYS$GNU_REL-$LIBC
+        ;;
++    x86_64:[Hh]ades:*:*|i?86:[Hh]ades:*:*)
++    GUESS="$UNAME_MACHINE-pc-hades"
++    ;;
++    *:[Hh]ades:*:*)
++    GUESS="$UNAME_MACHINE-unknown-hades"
++    ;;
+     *:Minix:*:*)
+        GUESS=$UNAME_MACHINE-unknown-minix
+        ;;
+diff -Naur ../dpkg-v1.22.11-orig/build-aux/config.sub ./build-aux/config.sub
+--- ../dpkg-v1.22.11-orig/build-aux/config.sub  2024-12-28 02:27:45.272986374 -0500
++++ ./build-aux/config.sub      2024-12-28 02:29:15.157701831 -0500
+@@ -1723,7 +1723,7 @@
+             | hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris* \
+             | sym* |  plan9* | psp* | sim* | xray* | os68k* | v88r* \
+             | hiux* | abug | nacl* | netware* | windows* \
+-            | os9* | macos* | osx* | ios* \
++            | os9* | macos* | osx* | ios* | hades* \
+             | mpw* | magic* | mmixware* | mon960* | lnews* \
+             | amigaos* | amigados* | msdos* | newsos* | unicos* | aof* \
+             | aos* | aros* | cloudabi* | sortix* | twizzler* \
+diff -Naur ../dpkg-v1.22.11-orig/data/ostable ./data/ostable
+--- ../dpkg-v1.22.11-orig/data/ostable  2024-12-28 02:27:45.272986374 -0500
++++ ./data/ostable      2024-12-28 02:27:51.889038825 -0500
+@@ -39,3 +39,4 @@
+ base-sysv-aix          aix                     aix[^-]*
+ base-sysv-solaris      solaris                 solaris[^-]*
+ base-tos-mint          mint                    mint[^-]*
++base-pc-hades          hades                   hades[^-]*
+diff -Naur ../dpkg-v1.22.11-orig/data/tupletable ./data/tupletable
+--- ../dpkg-v1.22.11-orig/data/tupletable       2024-12-28 02:27:45.272986374 -0500
++++ ./data/tupletable   2024-12-28 02:27:49.637020968 -0500
+@@ -67,3 +67,4 @@
+ base-sysv-solaris-sparc                solaris-sparc
+ base-sysv-solaris-sparc64      solaris-sparc64
+ base-tos-mint-m68k             mint-m68k
++base-pc-hades-amd64            hades-amd64
+\ No newline at end of file
+diff -Naur ../dpkg-v1.22.11-orig/lib/dpkg/arch.c ./lib/dpkg/arch.c
+--- ../dpkg-v1.22.11-orig/lib/dpkg/arch.c       2024-12-28 02:27:45.276986406 -0500
++++ ./lib/dpkg/arch.c   2024-12-28 02:28:32.181358996 -0500
+@@ -286,7 +286,7 @@
+ {
+        FILE *fp;
+        char *archfile;
+-       char archname[_POSIX2_LINE_MAX];
++       char archname[2048];
+ 
+        archfile = dpkg_db_get_path(DPKG_DB_ARCH_FILE);
+        fp = fopen(archfile, "r");
+diff -Naur ../dpkg-v1.22.11-orig/lib/dpkg/progname.c ./lib/dpkg/progname.c
+--- ../dpkg-v1.22.11-orig/lib/dpkg/progname.c   2024-12-28 02:27:45.280986438 -0500
++++ ./lib/dpkg/progname.c       2024-12-28 02:28:48.661490305 -0500
+@@ -50,7 +50,7 @@
+ }
+ 
+ #if defined(HAVE___PROGNAME)
+-extern const char *__progname;
++extern char *__progname;
+ #endif
+ 
+ /**
+diff -Naur ../dpkg-v1.22.11-orig/lib/dpkg/trigdeferred.c ./lib/dpkg/trigdeferred.c
+--- ../dpkg-v1.22.11-orig/lib/dpkg/trigdeferred.c       2024-12-28 02:27:45.280986438 -0500
++++ ./lib/dpkg/trigdeferred.c   2024-12-28 02:28:59.557577235 -0500
+@@ -182,7 +182,7 @@
+ int
+ trigdef_parse(void)
+ {
+-       char line[_POSIX2_LINE_MAX];
++       char line[2048];
+        char *ptr, *ptr_ini;
+        int line_num = 0;
+ 

@@ -45,15 +45,6 @@
             "uniqueItems": true
         },
 
-        "configure": {
-            "description": "Configure step for stage",
-            "type": "array",
-            "items": {
-                "$ref": "/hbuild/step"
-            },
-            "minItems": 1,
-            "uniqueItems": true
-        },
         "compile": {
             "description": "Compile step for stage",
             "type": "array",
@@ -74,9 +65,12 @@
         }        
     },
 
+    "if": { "required": ["build"] },
+    "then": { "not": { "required": ["compile", "install"] } },
+    
     "required": ["name"],
     "anyOf": [
-        { "required": ["configure"] },
+        { "required": ["build"] },
         { "required": ["compile"] },
         { "required": ["install"] }
     ]

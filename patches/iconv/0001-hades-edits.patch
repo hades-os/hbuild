@@ -1,0 +1,26 @@
+diff -Naur ../iconv-v1.17-orig/libcharset/Makefile.devel ./libcharset/Makefile.devel
+--- ../iconv-v1.17-orig/libcharset/Makefile.devel	2025-01-02 19:17:48.278785677 -0500
++++ ./libcharset/Makefile.devel	2025-01-02 19:18:06.650777571 -0500
+@@ -5,7 +5,7 @@
+ MAKE = make
+ AUTOCONF = autoconf
+ AUTOHEADER = autoheader
+-ACLOCAL = aclocal-1.16
++ACLOCAL = aclocal
+ CP = cp
+ RM = rm -f
+ 
+diff -Naur ../iconv-v1.17-orig/Makefile.devel ./Makefile.devel
+--- ../iconv-v1.17-orig/Makefile.devel	2025-01-02 19:17:48.262785683 -0500
++++ ./Makefile.devel	2025-01-02 19:17:54.010783469 -0500
+@@ -6,8 +6,8 @@
+ MAKE = make
+ AUTOCONF = autoconf
+ AUTOHEADER = autoheader
+-AUTOMAKE = automake-1.16
+-ACLOCAL = aclocal-1.16
++AUTOMAKE = automake
++ACLOCAL = aclocal
+ GPERF = gperf
+ CC = gcc -Wall
+ CFLAGS = -O

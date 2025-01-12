@@ -118,8 +118,14 @@
             "if": { "required": ["git"] },
             "then": { "oneOf": [
                 { "required": ["tag"] },
-                { "required": ["commit"] }
+                { "required": ["commit"] },
+                { "required": ["branch"] }
             ] }
+        },
+
+        {
+            "if": { "required": ["branch"] },
+            "then": { "not": { "required": ["commit", "tag"] }}
         }
     ]
 }

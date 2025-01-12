@@ -1,0 +1,33 @@
+diff -Naur ../readline-v8.1-orig/support/config.sub ./support/config.sub
+--- ../readline-v8.1-orig/support/config.sub	2025-01-02 18:49:00.183225473 -0500
++++ ./support/config.sub	2025-01-02 18:49:36.235003134 -0500
+@@ -1695,7 +1695,7 @@
+ 	     | hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris* \
+ 	     | sym* |  plan9* | psp* | sim* | xray* | os68k* | v88r* \
+ 	     | hiux* | abug | nacl* | netware* | windows* \
+-	     | os9* | macos* | osx* | ios* \
++	     | os9* | macos* | osx* | ios* | hades* \
+ 	     | mpw* | magic* | mmixware* | mon960* | lnews* \
+ 	     | amigaos* | amigados* | msdos* | newsos* | unicos* | aof* \
+ 	     | aos* | aros* | cloudabi* | sortix* | twizzler* \
+diff -Naur ../readline-v8.1-orig/support/shlib-install ./support/shlib-install
+--- ../readline-v8.1-orig/support/shlib-install	2025-01-02 18:49:00.183225473 -0500
++++ ./support/shlib-install	2025-01-02 18:50:18.694734837 -0500
+@@ -71,7 +71,7 @@
+ # Cygwin installs both a dll (which must go in $BINDIR) and an implicit
+ # link library (in $libdir)
+ case "$host_os" in
+-hpux*|darwin*|macosx*|linux*|solaris2*)
++hpux*|darwin*|macosx*|linux*|solaris2*|hades*)
+ 	if [ -z "$uninstall" ]; then
+ 		chmod 755 ${INSTALLDIR}/${LIBNAME}
+ 	fi ;;
+@@ -146,7 +146,7 @@
+ 	fi
+ 	;;
+ 
+-solaris2*|aix4.[2-9]*|aix[5-9]*|osf*|irix[56]*|sysv[45]*|dgux*|interix*)
++solaris2*|aix4.[2-9]*|aix[5-9]*|osf*|irix[56]*|sysv[45]*|dgux*|interix*|*hades*)
+ 	# libname.so -> libname.so.M
+ 	${echo} ${RM} ${INSTALLDIR}/$LINK1
+ 	if [ -z "$uninstall" ]; then

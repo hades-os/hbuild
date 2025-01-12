@@ -1,0 +1,32 @@
+diff -Naur ../libtool-v2.5.4-orig/m4/libtool.m4 ./m4/libtool.m4
+--- ../libtool-v2.5.4-orig/m4/libtool.m4        2024-12-28 01:36:10.449172787 -0500
++++ ./m4/libtool.m4     2024-12-28 01:36:15.569215304 -0500
+@@ -3008,6 +3008,17 @@
+   hardcode_into_libs=yes
+   ;;
+ 
++hades*)
++  version_type=linux
++  need_lib_prefix=no
++  need_version=no
++  library_names_spec='$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'
++  soname_spec='$libname$release$shared_ext$major'
++  shlibpath_var=LD_LIBRARY_PATH
++  shlibpath_overrides_runpath=no
++  hardcode_into_libs=yes
++  ;;
++
+ newsos6)
+   version_type=linux # correct to gnu/linux during the next big refactor
+   library_names_spec='$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'
+@@ -3673,7 +3684,9 @@
+ linux* | k*bsd*-gnu | kopensolaris*-gnu | gnu*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+-
++hades*)
++  lt_cv_deplibs_check_method=pass_all
++  ;;
+ *-mlibc)
+   lt_cv_deplibs_check_method=pass_all
+   ;;

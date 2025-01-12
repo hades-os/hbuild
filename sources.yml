@@ -33,10 +33,13 @@
     subdir: 'ports'
     version: '5.0'
 
-    url: 'https://repo.hades-os.org/sources/mlibc-v5.0.tar.xz'
-    format: 'tar.xz'
-    extract-path: 'mlibc-v5.0'
-    extract-strip: 1
+    git: 'https://github.com/rozjin/mlibc'
+    branch: 'release-5.0'
+
+#    url: 'https://repo.hades-os.org/sources/mlibc-v5.0.tar.xz'
+#    format: 'tar.xz'
+#    extract-path: 'mlibc-v5.0'
+#    extract-strip: 1
 
   - name: autoconf
     subdir: 'ports'
@@ -58,11 +61,11 @@
 
   - name: libtool
     subdir: 'ports'
-    version: '2.4.6'
+    version: '2.5.4'
 
-    url: 'https://repo.hades-os.org/sources/libtool-v2.4.6.tar.xz'
+    url: 'https://repo.hades-os.org/sources/libtool-v2.5.4.tar.xz'
     format: 'tar.xz'
-    extract-path: 'libtool-v2.4.6'
+    extract-path: 'libtool-v2.5.4'
     extract-strip: 1
 
   - name: 'pkg-config'
@@ -76,9 +79,108 @@
 
   - name: 'bash'
     subdir: 'ports'
-    version: '5.2'
+    version: '5.1'
 
-    url: 'https://repo.hades-os.org/sources/bash-v5.2.tar.xz'
+    url: 'https://repo.hades-os.org/sources/bash-v5.1.tar.xz'
     format: 'tar.xz'
-    extract-path: 'bash-v5.2'
+    extract-path: 'bash-v5.1'
+    extract-strip: 1
+
+  - name: 'bison'
+    subdir: 'ports'
+    version: '3.6.2'
+
+    url: 'https://repo.hades-os.org/sources/bison-v3.6.2.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'bison-v3.6.2'
+    extract-strip: 1
+
+  - name: 'coreutils'
+    subdir: 'ports'
+    version: '9.5'
+
+    url: 'https://repo.hades-os.org/sources/coreutils-v9.5.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'coreutils-v5.2'
+    extract-strip: 1
+
+  - name: 'gettext'
+    subdir: 'ports'
+    version: '0.22.3'
+
+    url: 'https://repo.hades-os.org/sources/gettext-v0.22.3.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'gettext-v0.22.3'
+    extract-strip: 1
+
+  - name: 'iconv'
+    subdir: 'ports'
+    version: '1.17'
+
+    url: 'https://repo.hades-os.org/sources/iconv-v1.17.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'iconv-v1.17'
+    extract-strip: 1
+
+  - name: 'ncurses'
+    subdir: 'ports'
+    version: '6.2'
+
+    url: 'https://repo.hades-os.org/sources/ncurses-v6.2.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'ncurses-v6.2'
+    extract-strip: 1
+
+  - name: 'readline'
+    subdir: 'ports'
+    version: '8.1'
+
+    url: 'https://repo.hades-os.org/sources/readline-v8.1.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'readline-v8.1'
+    extract-strip: 1
+
+  - name: 'zlib'
+    subdir: 'ports'
+    version: '1.2.12'
+
+    url: 'https://repo.hades-os.org/sources/zlib-v1.2.12.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'zlib-v1.2.12'
+    extract-strip: 1
+
+  - name: 'xz-utils'
+    subdir: 'ports'
+    version: '5.4.4'
+
+    url: 'https://repo.hades-os.org/sources/xz-utils-v5.4.4.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'xz-utils-5.4.4'
+    extract-strip: 1
+
+  - name: 'openssl'
+    subdir: 'ports'
+    version: '1.1.1'
+
+    url: 'https://repo.hades-os.org/sources/openssl-v1.1.1.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'openssl-v1.1.1'
+    extract-strip: 1
+
+  - name: 'libmd'
+    subdir: 'ports'
+    version: '1.1.0'
+
+    url: 'https://repo.hades-os.org/sources/libmd-v1.1.0.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'libmd-v1.1.0'
+    extract-strip: 1
+
+  - name: 'dpkg'
+    subdir: 'ports'
+    version: '1.22.11'
+
+    url: 'https://repo.hades-os.org/sources/dpkg-v1.22.11.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'dpkg-v1.22.11'
     extract-strip: 1

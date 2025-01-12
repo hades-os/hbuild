@@ -18,12 +18,6 @@ class Stage:
         else:
             self.pkgs_required = []
 
-        self.configure_steps: list[Step] = []
-        if "configure" in source_properties:
-            configure_properties = source_properties["configure"]
-            for step in configure_properties:
-                self.configure_steps.append(Step(step, self))
-
         self.compile_steps: list[Step] = []
         if "compile" in source_properties:
             compile_properties = source_properties["compile"]
@@ -41,6 +35,11 @@ class Stage:
             build_properties = source_properties["build"]
             for step in build_properties:
                 self.build_steps.append(Step(step, self))
+
+        self.has_built = False
+        
+        self.has_compiled = False
+        self.has_installed = False
     
     def deps(self):
         deps = []

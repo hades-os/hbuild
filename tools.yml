@@ -31,8 +31,40 @@
       - args: ['ln', '-sf', '@PREFIX@/share/aclocal-1.16', '@PREFIX@/share/aclocal']
       - args: ['cp', '-r', '@THIS_SOURCE_DIR@/autoconf-archive/m4/.', '@PREFIX@/share/aclocal-1.16/']
 
+  - name: host-bison
+    version: '3.6.2'
+    from_source: bison
+    tools-required:
+      - host-automake
+      - host-autoconf
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--prefix=@PREFIX@'
+    compile:
+      - args: ['make', '-j@PARALLELISM@']
+    install:
+      - args: ['make', 'install']
+
+  - name: host-gettext
+    version: '0.22.3'
+    from_source: gettext
+    tools-required:
+      - host-automake
+      - host-autoconf
+      - host-bison
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--prefix=@PREFIX@'
+    compile:
+      - args: ['make']
+    install:
+      - args: ['make', 'install']
+
+
   - name: host-libtool
-    version: '2.4.6'
+    version: '2.5.4'
     from_source: libtool
     configure:
       - args: ['@THIS_SOURCE_DIR@/configure', '--prefix=@PREFIX@']
@@ -115,3 +147,14 @@
           - args: ['make', '-j@PARALLELISM@', 'all-target-libstdc++-v3']
         install:
           - args: ['make', 'install-target-libstdc++-v3']
+  - name: host-tic
+    version: '6.2'
+    from_source: ncurses
+    configure:
+      - args: ['@THIS_SOURCE_DIR@/configure']
+    compile:
+      - args: ['make', '-C', 'include']
+      - args: ['make', '-C', 'progs', 'tic']
+    install:
+      - args: ['mkdir', '-p', '@PREFIX@/bin']
+      - args: ['cp', 'progs/tic', '@PREFIX@/bin/']

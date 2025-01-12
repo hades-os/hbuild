@@ -127,6 +127,15 @@
 
     "required": ["version", "metadata"],
 
-    "if": { "required": ["from_source"] },
-    "then": { "not": { "required": ["source"] } }
+    "allOf": [
+        {
+            "if": { "required": ["from_source"] },
+            "then": { "not": { "required": ["source"] } }        
+        },
+
+        {
+            "if": { "required": ["configure"] },
+            "then": { "not": { "required": ["compile", "install"] } }
+        }
+    ]
 }

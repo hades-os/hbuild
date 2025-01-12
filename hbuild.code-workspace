@@ -1,0 +1,19 @@
+{
+	"folders": [
+        {
+            "path": "."
+        },
+        {
+            "path": "../sources"
+        }
+    ],
+    "settings": {
+        "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild",
+        "files.associations": {
+            "*.pk": "yaml",
+            "*.rmd": "markdown",
+            "*.inc": "c",
+            "cstdlib": "c"
+        }
+    }
+}
