@@ -7,6 +7,5 @@
 /system_files/
 /system_prefix/
 
-hbuild.lock
-
 **__pycache__**
+hbuild.lock

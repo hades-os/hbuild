@@ -3,6 +3,9 @@ import multiprocessing
 import os
 import subprocess
 
+from subprocess import CalledProcessError
+from rich import print as rich_print
+
 class StepWorkdirType(Enum):
     CUSTOM = 1
     BUILDDIR = 2
@@ -33,11 +36,14 @@ class Step:
         else:
             self.shell = False
 
-    def do_substitutions(self, system_prefix, system_target,  sources_dir, build_dir, collect_dir, system_dir):
+    def do_substitutions(self, system_prefix, system_targets,  sources_dir, build_dir, collect_dir, system_dir):
         replaced_args = []
         replaced_environ: dict[str, str]= {}
+
+        base_workdir = os.path.join(build_dir, self.package.dir)
+
         if self.workdir_type == StepWorkdirType.BUILDDIR:
-            replaced_workdir = os.path.join(build_dir, self.workdir)
+            replaced_workdir = os.path.join(build_dir, self.package.dir)
         else:
             replaced_workdir = self.workdir
 
@@ -51,6 +57,7 @@ class Step:
 
         parallelism = self.cpu_count
 
+        replaced_workdir = replaced_workdir.replace("@THIS_BUILD_DIR@", base_workdir)
         replaced_workdir = replaced_workdir.replace("@THIS_SOURCE_DIR@", source_dir)
         replaced_workdir = replaced_workdir.replace("@THIS_COLLECT_DIR@", this_collect_dir)
 
@@ -58,19 +65,21 @@ class Step:
         replaced_workdir = replaced_workdir.replace("@SYSROOT_DIR@", sysroot_dir)
 
         replaced_workdir = replaced_workdir.replace("@PREFIX@", prefix_dir)
-        replaced_workdir = replaced_workdir.replace("@TARGET@", system_target)
+        replaced_workdir = replaced_workdir.replace("@TARGET_X64@", system_targets["x86_64"])
+        replaced_workdir = replaced_workdir.replace("@TARGET_X32@", system_targets["i686"])
         replaced_workdir = replaced_workdir.replace("@PARALLELISM@", str(parallelism))
 
         for arg in self.args:
             arg = arg.replace("@THIS_SOURCE_DIR@", source_dir)
             arg = arg.replace("@THIS_COLLECT_DIR@", this_collect_dir)
-            arg = arg.replace("@THIS_BUILD_DIR@", replaced_workdir)
+            arg = arg.replace("@THIS_BUILD_DIR@", base_workdir)
 
             arg = arg.replace("@SOURCE_ROOT@", source_root)
             arg = arg.replace("@SYSROOT_DIR@", sysroot_dir)
 
             arg = arg.replace("@PREFIX@", prefix_dir)
-            arg = arg.replace("@TARGET@", system_target)
+            arg = arg.replace("@TARGET_X64@", system_targets["x86_64"])
+            arg = arg.replace("@TARGET_X32@", system_targets["i686"])
             arg = arg.replace("@PARALLELISM@", str(parallelism))
 
             replaced_args.append(arg)
@@ -78,13 +87,14 @@ class Step:
         for env_var, env_val in self.environ.items():
             env_val = env_val.replace("@THIS_SOURCE_DIR@", source_dir)
             env_val = env_val.replace("@THIS_COLLECT_DIR@", this_collect_dir)
-            env_val = env_val.replace("@THIS_BUILD_DIR@", replaced_workdir)
+            env_val = env_val.replace("@THIS_BUILD_DIR@", base_workdir)
 
             env_val = env_val.replace("@SOURCE_ROOT@", source_root)
             env_val = env_val.replace("@SYSROOT_DIR@", sysroot_dir)
 
             env_val = env_val.replace("@PREFIX@", prefix_dir)
-            env_val = env_val.replace("@TARGET@", system_target)
+            env_val = env_val.replace("@TARGET_X64@", system_targets["x86_64"])
+            env_val = env_val.replace("@TARGET_X32@", system_targets["i686"])
             env_val = env_val.replace("@PARALLELISM@", str(parallelism))
 
             replaced_environ[env_var] = env_val     
@@ -98,13 +108,16 @@ class Step:
 
         return replaced_args, replaced_environ, replaced_workdir
 
-    def exec(self, system_prefix, system_target,  sources_dir, build_dir, collect_dir, system_dir):
-        args, environ, workdir = self.do_substitutions(system_prefix, system_target, sources_dir, build_dir, collect_dir, system_dir)
+    def exec(self, system_prefix, system_targets,  sources_dir, build_dir, collect_dir, system_dir):
+        args, environ, workdir = self.do_substitutions(system_prefix, system_targets, sources_dir, build_dir, collect_dir, system_dir)
 
-        res = subprocess.run(args, env = environ, cwd = workdir, shell = self.shell, 
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-        
-        print(res.stdout)
+        try:
+            res = subprocess.check_output(args, env = environ, cwd = workdir, shell = self.shell, 
+                stderr=subprocess.STDOUT, universal_newlines=True)
+            print(res)
+        except CalledProcessError as err:
+            rich_print(f"[red] Error running step for package {self.package.name}: exit {err.returncode}")
+            raise err
         
     def __str__(self):
         return f"Step: {self.environ} {self.args}: {self.workdir}"

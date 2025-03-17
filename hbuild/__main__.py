@@ -5,6 +5,7 @@ import toml
 import yaml
 
 from dataclasses import field
+from enum import Enum
 from argparse_dataclass import dataclass as argclass
 from argparse_dataclass import ArgumentParser
 
@@ -26,9 +27,14 @@ from .source import SourcePackage
 from .tool import ToolPackage,ToolSourceType
 from .package import Package, PackageSourceType
 
+class HBuildState(int, Enum):
+    CONFIGURED = 1
+    BUILT = 2
+    INSTALLED = 3
+
 class HBuild:
     def __init__(self, selection, op):
-        self.lock: dict[str: str] = {}
+        self.lock: dict[str: HBuildState] = {}
 
         self.load_config()
         self.load_lock()
@@ -50,7 +56,12 @@ class HBuild:
         self.system_dir = Path(self.config["hbuild"]["system"]["files"]).resolve().as_posix()
         self.system_prefix = Path(self.config["hbuild"]["system"]["prefix"]).resolve().as_posix()
 
-        self.system_target = self.config["hbuild"]["system"]["target"]
+        self.prefix_symlink = Path(self.system_dir, "prefix").resolve()
+
+        if self.prefix_symlink.exists() is False:
+            self.prefix_symlink.symlink_to(self.system_prefix, target_is_directory=True)
+
+        self.system_targets = self.config["hbuild"]["system"]["targets"]
 
         self.dep_graph = rx.PyDiGraph(check_cycle = True)
         self.selection: list[str] = selection
@@ -247,50 +258,71 @@ class HBuild:
         for source in self.sources:
             self.dep_dict[f"source[{source.name}]"] = source.deps()
 
+        self.pkg_idxs = {}
         for tool in self.tools:
             self.dep_dict[tool.name] = tool.deps()
-            for stage, stage_deps in tool.stage_deps.items():
-                self.dep_dict[stage] = stage_deps
-                self.dep_dict[tool.name] = [*self.dep_dict[tool.name], stage]
 
-        for package in self.packages:
-            self.dep_dict[package.name] = package.deps()
-            for stage, stage_deps in package.stage_deps.items():
-                self.dep_dict[stage] = stage_deps
-                self.dep_dict[package.name] = [*self.dep_dict[package.name], stage]
-                
-        # TODO: avoid two loops
-        self.pkg_idxs = {}
-        for pkg, deps in self.dep_dict.items():
-            if pkg not in self.pkg_idxs:
-                self.pkg_idxs[pkg] = self.dep_graph.add_node(pkg)
+            if tool.name not in self.pkg_idxs:
+                self.pkg_idxs[tool.name] = self.dep_graph.add_node(tool.name)
 
-            for dep in deps:
+            for dep in tool.deps():
                 if dep not in self.pkg_idxs:
                     self.pkg_idxs[dep] = self.dep_graph.add_node(dep)
 
+            for stage, stage_deps in tool.stage_deps.items():
+                if stage not in self.pkg_idxs:
+                    self.pkg_idxs[stage] = self.dep_graph.add_node(stage)
+                    self.dep_dict[tool.name] = [*self.dep_dict[tool.name], stage]
+
+                self.dep_dict[stage] = stage_deps
+                for dep in stage_deps:
+                    if dep not in self.pkg_idxs:
+                        self.pkg_idxs[dep] = self.dep_graph.add_node(dep)
+
+        system_deps = {}
+        no_deps = []
+
+        for package in self.packages:
+            self.dep_dict[package.name] = package.deps()
+
+            if package.name not in self.pkg_idxs:
+                self.pkg_idxs[package.name] = self.dep_graph.add_node(package.name)
+
+            if package.system_package is True and package.name not in system_deps:
+                system_deps[package.name] = self.pkg_idxs[package.name]
+            
+            if package.no_deps is True:
+                no_deps.append(package.name)
+
+            for dep in package.deps():
+                if dep not in self.pkg_idxs:
+                    self.pkg_idxs[dep] = self.dep_graph.add_node(dep)
+
+            for stage, stage_deps in package.stage_deps.items():
+                if stage not in self.pkg_idxs:
+                    self.pkg_idxs[stage] = self.dep_graph.add_node(stage)
+                    self.dep_dict[package.name] = [*self.dep_dict[package.name], stage]
+
+                self.dep_dict[stage] = stage_deps
+                for dep in stage_deps:
+                    if dep not in self.pkg_idxs:
+                        self.pkg_idxs[dep] = self.dep_graph.add_node(dep)
+                
+        # TODO: avoid two loops
+
         for pkg, deps in self.dep_dict.items():
             pkg_idx = self.pkg_idxs[pkg]
 
             for dep in deps:
+                if dep not in self.pkg_idxs:
+                    raise Exception(f"Unable to resolve dependency {pkg} -> {dep}")
+
                 dep_idx = self.pkg_idxs[dep]
                 self.dep_graph.add_edge(pkg_idx, dep_idx, None)
-
-        system_deps = {}
-        for package in self.packages:
-            if package.system_package is True:
-                system_deps[package.name] = self.pkg_idxs[package.name]
-
-        for pkg, deps in self.dep_dict.items():
-            if pkg in system_deps:
-                continue
-
-            if pkg not in self.package_names:
-                continue
-
-            pkg_idx = self.pkg_idxs[pkg]
-            for system_dep in system_deps.values():
-                self.dep_graph.add_edge(pkg_idx, system_dep, None)
+            
+            if pkg not in no_deps and pkg not in system_deps and pkg in self.package_names:
+                for system_dep in system_deps.values():
+                    self.dep_graph.add_edge(pkg_idx, system_dep, None)
 
     def build_pkg_map(self):
         self.pkg_map = {}
@@ -354,13 +386,13 @@ class HBuild:
         self.install_order = list(reversed(self.install_order))
 
         if self.op != "clean" or len(self.selection) > 0:
-            self.install_order = [pkg_idx for pkg_idx in self.install_order if self.dep_graph[pkg_idx] not in self.lock or self.dep_graph[pkg_idx] in self.selection]
+            self.install_order = [pkg_idx for pkg_idx in self.install_order if self.dep_graph[pkg_idx] not in self.lock or self.lock[self.dep_graph[pkg_idx]] != HBuildState.INSTALLED or self.dep_graph[pkg_idx] in self.selection]
 
     def format_node(self, node: str):
         if self.op == "clean" and len(self.selection) == 0:
             return f"[bright_green]{escape(node)}"
         else:
-            if node not in self.lock or node in self.selection:
+            if node not in self.lock or self.lock[node] != HBuildState.INSTALLED or node in self.selection:
                 return f"[bright_green]{escape(node)}"
             else:
                 return f"[gray]{escape(node)}"
@@ -394,55 +426,85 @@ class HBuild:
 
         rich_print(self.print_tree)
 
-        # visual = graphviz_draw(self.dep_graph, node_attr_fn=lambda node: { "label": str(node) })
-        # visual.show()
+        visual = graphviz_draw(self.dep_graph, node_attr_fn=lambda node: { "label": str(node) })
+        visual.show()
 
     def build_source(self, package: SourcePackage):
-        package.prepare(self.sources_dir, self.system_prefix, self.patches_dir)
-        package.regenerate(self.sources_dir, self.system_dir, self.system_prefix, self.system_target)
+        source_name = f"source[{package.name}]"
+        if self.has_installed(source_name) is False:
+            package.prepare(self.sources_dir, self.system_prefix, self.patches_dir)
+            os.sync()
+
+            package.regenerate(self.sources_dir, self.system_dir, self.system_prefix, self.system_targets)
+            os.sync()
+
+            self.mark_installed(source_name)
 
     def build_tool(self, package: ToolPackage, stage_name: str):
         stage = package.find_stage(stage_name)
 
-        if package.has_configured is False:
+        if self.has_configured(package.name) is False:
             package.configure(self.sources_dir, self.builds_dir, self.tools_dir,
-                self.system_prefix, self.system_target, self.system_dir)
+                self.system_prefix, self.system_targets, self.system_dir)
+            os.sync()
+            self.mark_configured(package.name)
 
+        full_stage_name = f"{package.name}[{stage_name}]"
         if stage is not None:
-            if stage.has_compiled is False:
+            if self.has_built(full_stage_name) is False:
                 package.compile(self.sources_dir, self.builds_dir, self.tools_dir,
-                    self.system_prefix, self.system_target, self.system_dir, stage)
+                    self.system_prefix, self.system_targets, self.system_dir, stage)
+                os.sync()
+                self.mark_built(full_stage_name)
 
-            if stage.has_installed is False:
+            if self.has_installed(full_stage_name) is False:
                 package.install(self.sources_dir, self.builds_dir, self.tools_dir,
-                    self.system_prefix, self.system_target, self.system_dir, stage)
+                    self.system_prefix, self.system_targets, self.system_dir, stage)
+                os.sync()
+                self.mark_installed(full_stage_name)
         else:
-            if package.has_compiled is False:
+            if self.has_built(package.name) is False:
                 package.compile(self.sources_dir, self.builds_dir, self.tools_dir,
-                    self.system_prefix, self.system_target, self.system_dir, None)
+                    self.system_prefix, self.system_targets, self.system_dir, None)
+                os.sync()
+                self.mark_built(package.name)
 
-            if package.has_installed is False:
+            if self.has_installed(package.name) is False:
                 package.install(self.sources_dir, self.builds_dir, self.tools_dir,
-                    self.system_prefix, self.system_target, self.system_dir, None)
-                
+                    self.system_prefix, self.system_targets, self.system_dir, None)
+                os.sync()
+                self.mark_installed(package.name)
+            
     def build_system(self, package: Package, stage_name: str):
         stage = package.find_stage(stage_name)
 
-        if package.has_configured is False:
+        if self.has_configured(package.name) is False:
             package.configure(self.sources_dir, self.builds_dir, self.packages_dir,
-                self.system_prefix, self.system_target, self.system_dir)
+                self.system_prefix, self.system_targets, self.system_dir)
+            os.sync()
+            self.mark_configured(package.name)
 
-        if stage is not None and stage.has_built is False:
+        full_stage_name = f"{package.name}[{stage_name}]"
+        if stage is not None and self.has_built(full_stage_name) is False:
             package.build(self.sources_dir, self.builds_dir, self.packages_dir,
-                self.system_prefix, self.system_target, self.system_dir, stage)
-        elif package.has_built is False:
+                self.system_prefix, self.system_targets, self.system_dir, stage)
+            os.sync()
+            self.mark_built(full_stage_name)
+        elif self.has_built(package.name) is False:
             package.build(self.sources_dir, self.builds_dir, self.packages_dir,
-                self.system_prefix, self.system_target, self.system_dir, None)
-
-        package.copy_system(self.packages_dir, self.system_dir)
+                self.system_prefix, self.system_targets, self.system_dir, None)
+            os.sync()
+            self.mark_built(package.name)
 
     def build_deb(self, package: Package):
-        package.make_deb(self.packages_dir, {dep: self.pkg_map[dep].version for dep in package.pkg_deps()})
+        if self.has_installed(package.name) is False:
+            package.copy_system(self.packages_dir, self.system_dir)
+            os.sync()
+
+            package.make_deb(self.packages_dir, {dep: self.pkg_map[dep].version for dep in package.pkg_deps()})
+            os.sync()
+
+            self.mark_installed(package.name)
 
     def build_package(self, name):
         print(f"Installing {name}")
@@ -465,7 +527,7 @@ class HBuild:
         self.make_dirs(self.install_order)
         for pkg_idx in self.install_order:
             self.build_package(self.dep_graph[pkg_idx])
-            self.mark_built(self.dep_graph[pkg_idx])
+            self.commit()
     
     def install(self):
         for pkg_idx in self.install_order:
@@ -484,7 +546,7 @@ class HBuild:
     def clean(self):
         self.clean_dirs(self.install_order)
         for pkg_idx in self.install_order:
-            self.unmark_built(self.dep_graph[pkg_idx])
+            self.unmark_configured(self.dep_graph[pkg_idx])
 
     def package(self):
         for pkg_idx in self.install_order:
@@ -499,12 +561,41 @@ class HBuild:
             else:
                 rich_print("[yellow] WARN: Source or tool package passed to hbuild.package")
 
+    def has_configured(self, pkg_name):
+        if pkg_name in self.lock and self.lock[pkg_name] == HBuildState.CONFIGURED:
+            return True
+        return False
+
+    def has_built(self, pkg_name):
+        if pkg_name in self.lock and self.lock[pkg_name] == HBuildState.BUILT:
+            return True
+        return False
+
+    def has_installed(self, pkg_name):
+        if pkg_name in self.lock and self.lock[pkg_name] == HBuildState.INSTALLED:
+            return True
+        return False
+
+    def mark_configured(self, pkg_name):
+        self.lock[pkg_name] = HBuildState.CONFIGURED
+
+    def unmark_configured(self, pkg_name):
+        if pkg_name in self.lock:
+            del self.lock[pkg_name]
+
     def mark_built(self, pkg_name):
-        self.lock[pkg_name] = True
+        self.lock[pkg_name] = HBuildState.BUILT
 
     def unmark_built(self, pkg_name):
         if pkg_name in self.lock:
-            del self.lock[pkg_name]
+            self.lock[pkg_name] = HBuildState.CONFIGURED
+
+    def mark_installed(self, pkg_name):
+        self.lock[pkg_name] = HBuildState.INSTALLED
+
+    def unmark_installed(self, pkg_name):
+        if pkg_name in self.lock:
+            self.lock[pkg_name] = HBuildState.BUILT
 
     def commit(self):
         with open("hbuild.lock", "w+") as f:

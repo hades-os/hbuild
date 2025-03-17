@@ -35,11 +35,6 @@ class Stage:
             build_properties = source_properties["build"]
             for step in build_properties:
                 self.build_steps.append(Step(step, self))
-
-        self.has_built = False
-        
-        self.has_compiled = False
-        self.has_installed = False
     
     def deps(self):
         deps = []

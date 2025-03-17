@@ -40,6 +40,11 @@ class Package:
         else:
             self.system_package = False
 
+        if "no-deps" in source_properties:
+            self.no_deps = True
+        else:
+            self.no_deps = False
+
         if "tools-required" in source_properties:
             self.tools_required = source_properties["tools-required"]
         else:
@@ -67,9 +72,6 @@ class Package:
             stages_properties = source_properties["stages"]
             for stage in stages_properties:
                 self.stages.append(Stage(stage, self))
-
-        self.has_configured = False
-        self.has_built = False
 
     @property
     def num_stages(self):
@@ -140,7 +142,6 @@ class Package:
 
     def clean_dirs(self, packages_dir, builds_dir, system_dir):
         pkg_root_dir = os.path.join(packages_dir, self.dir)
-        pkg_files = []
 
         for dir, _, files in os.walk(os.path.join(packages_dir, self.dir)):
             for f in files:
@@ -163,20 +164,17 @@ class Package:
             shutil.rmtree(os.path.join(packages_dir, self.dir))
         self.prune_system(system_dir)
 
-    def configure(self, sources_dir,  builds_dir, packages_dir, system_prefix, system_target, system_dir):
+    def configure(self, sources_dir,  builds_dir, packages_dir, system_prefix, system_targets, system_dir):
         for step in self.configure_steps:
-            step.exec(system_prefix, system_target, sources_dir, builds_dir, packages_dir, system_dir)
-        self.has_configured = True
+            step.exec(system_prefix, system_targets, sources_dir, builds_dir, packages_dir, system_dir)
 
-    def build(self, sources_dir,  builds_dir, packages_dir, system_prefix, system_target, system_dir, stage: Stage = None):
+    def build(self, sources_dir,  builds_dir, packages_dir, system_prefix, system_targets, system_dir, stage: Stage = None):
         if stage is None:
             for step in self.build_steps:
-                step.exec(system_prefix, system_target, sources_dir, builds_dir, packages_dir, system_dir)
-            self.has_built = True
+                step.exec(system_prefix, system_targets, sources_dir, builds_dir, packages_dir, system_dir)
         else:
             for step in stage.build_steps:
-                step.exec(system_prefix, system_target, sources_dir, builds_dir, packages_dir, system_dir)
-            stage.has_built = True
+                step.exec(system_prefix, system_targets, sources_dir, builds_dir, packages_dir, system_dir)
 
     def files_size(self, packages_dir):
             total_size = 0
@@ -199,7 +197,7 @@ class Package:
 
             return f"""Package: {self.name}
 Version: {self.version}
-Architecture: amd64
+Architecture: {self.metadata["architecture"] if "metadata" in self.metadata else "amd64"}
 {self.format_description()}
 Section: {self.metadata["section"]}
 Maintainer: {self.metadata["maintainer"]}
@@ -210,7 +208,7 @@ Depends: {", ".join(deps)}
         else:
             return f"""Package: {self.name}
 Version: {self.version}
-Architecture: amd64
+Architecture: {self.metadata["architecture"] if "metadata" in self.metadata else "amd64"}
 {self.format_description()}
 Section: {self.metadata["section"]}
 Maintainer: {self.metadata["maintainer"]}

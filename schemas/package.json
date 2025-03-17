@@ -28,6 +28,11 @@
             "type": "boolean"
         },
 
+        "no-deps": {
+            "description": "No dependencies (including system packages)",
+            "type": "boolean"
+        },
+
         "metadata": {
             "description": "Package metadata for dpkg",
             "type": "object",

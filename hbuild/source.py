@@ -217,9 +217,9 @@ class SourcePackage:
         self.extract(sources_dir)
 #        self.apply_patches(sources_dir, patches_dir)
 
-    def regenerate(self, sources_dir, system_dir, system_prefix, system_target):
+    def regenerate(self, sources_dir, system_dir, system_prefix, system_targets):
         for step in self.regenerate_steps:
-            step.exec(system_prefix, system_target, sources_dir, sources_dir, sources_dir, system_dir)
+            step.exec(system_prefix, system_targets, sources_dir, sources_dir, sources_dir, system_dir)
 
     def __str__(self):
         return f"Source {self.name}[{self.version}]"
