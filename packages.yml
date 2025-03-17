@@ -11,12 +11,15 @@
       website: 'https://github.com/managarm/mlibc'
       maintainer: 'Yavuz Rao <racemus@hades-os.org>'
       section: core
+    pkgs-required:
+      - linux-headers
     configure:
       - args:
         - 'meson'
         - 'setup'
         - '--prefix=/usr'
         - '-Dheaders_only=true'
+        - '-Dlinux_kernel_headers=@BUILD_ROOT@/linux-headers/usr/include'
         - '--cross-file'
         - '@SOURCE_ROOT@/cross_file.txt'
 
@@ -54,6 +57,7 @@
         - '@SOURCE_ROOT@/cross_file.txt'
         - '-Ddisable_libgcc_dependency=true'
         - '-Dmlibc_no_headers=true'
+        - '-Dlinux_kernel_headers=@BUILD_ROOT@/linux-headers/usr/include'
 
         - '@THIS_SOURCE_DIR@'
         environ:
@@ -92,40 +96,6 @@
     build:
       - args: ['make', '-j@PARALLELISM@']
       - args: ['make', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']
-
-  - name: coreutils
-    version: '9.5'
-    from_source: coreutils
-    metadata:
-      summary: GNU core utilities
-      description:  This package contains the basic file, shell and text manipulation utilities which are expected to exist on every operating system.
-
-      website: 'https://www.gnu.org/software/coreutils/'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
-      section: core
-    tools-required:
-      - host-gcc
-    configure:
-      # Huge hack: coreutils does not compile the build-machine binary make-prime-list
-      # using the build-machine compiler. Hence, build and invoke the binary manually here.
-      - args: ['@THIS_SOURCE_DIR@/configure']
-      - args: ['make', 'src/make-prime-list']
-      - args: ['./src/make-prime-list 5000 > @THIS_SOURCE_DIR@/src/primes.h']
-        shell: True
-      - args: ['make', 'clean']
-
-      # Now compile coreutils for the correct target.
-      - args:
-        - '@THIS_SOURCE_DIR@/configure'
-        - '--host=@TARGET@'
-        - '--prefix=/usr'
-        environ:
-          CLFAGS: '-DSLOW_BUT_NO_HACKS -Wno-error'
-    build:
-      - args: ['make', '-j@PARALLELISM@']
-      - args: ['make', 'install']
-        environ:
-          DESTDIR: '@THIS_COLLECT_DIR@'
 
   - name: iconv
     version: '1.17'
@@ -321,6 +291,56 @@
           DESTDIR: '@THIS_COLLECT_DIR@'
       - args: ['cp', '-fr', '@THIS_SOURCE_DIR@/doc/.', '@THIS_COLLECT_DIR@/usr/share/doc/openssl']
 
+  - name: shadow
+    version: '4.8.1'
+    from_source: shadow
+    metadata:
+      summary: Utilities to deal with user accounts
+      description: The package contains programs for handling passwords in a secure way.
+
+      website: 'https://github.com/shadow-maint/shadow'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      section: utils
+    tools-required:
+      - host-gcc
+    pkgs-required:
+      - libxcrypt
+      - iconv
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--host=@TARGET@'
+        - '--prefix=/usr'
+        - '--exec-prefix=/usr'
+        - '--sysconfdir=/etc'
+        - '--disable-static'
+        - '--enable-shared'
+        - '--disable-nls'
+        - '--without-audit'
+        - '--without-libpam'
+        - '--without-btrfs'
+        - '--without-selinux'
+        - '--without-acl'
+        - '--without-attr'
+        - '--without-skey'
+        - '--without-tcb'
+        - '--without-libcrack'
+        - '--without-nscd'
+        - '--without-sssd'
+        - '--with-group-name-max-length=32'
+        - '--disable-man'
+        - '--with-bcrypt'
+        - '--with-yescrypt'
+        - '--without-libbsd'
+        environ:
+          ac_cv_func_fsync: 'no'
+          ac_cv_header_sys_capability_h: 'no'
+    build:
+      - args: ['make', '-j@PARALLELISM@']
+      - args: ['make', 'pamddir=', 'exec_prefix=/usr', 'install']
+        environ:
+          DESTDIR: '@THIS_COLLECT_DIR@'
+
   - name: libmd
     version: '1.1.0'
     from_source: libmd
@@ -346,6 +366,27 @@
       - args: ['make', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']
         environ:
           DESTDIR: '@THIS_COLLECT_DIR@'
+
+  - name: linux-headers
+    version: '6.1.8'
+    from_source: linux
+    no-deps: true
+    metadata:
+      summary: Header files for Linux amd64 configuration (meta-package)
+      description:  This package depends on the architecture-specific header files for the latest Linux kernel amd64 configuration. 
+
+      website: 'https://kernel.org'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      section: libs
+    configure:
+      - args: ['cp', '-Tr', '@THIS_SOURCE_DIR@', '.']
+    build:
+      - args: ['make', 'ARCH=x86_64', 'headers_install']
+      - args: ['find', 'usr/include', '-type', 'f', '!', '-name', '*.h', '-delete']
+      - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/usr']
+
+      - args: ['rm', 'usr/include/linux/libc-compat.h']
+      - args: ['cp', '-r', 'usr/include', '@THIS_COLLECT_DIR@/usr']
 
   - name: dpkg
     version: '1.22.11'
@@ -377,6 +418,35 @@
     build:
       - args: ['make', '-j@PARALLELISM@']
       - args: ['make', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']
+        environ:
+          DESTDIR: '@THIS_COLLECT_DIR@'
+
+  - name: libxcrypt
+    version: '4.4.36'
+    from_source: libxcrypt
+    metadata:
+      summary: libcrypt shared library
+      description:  libxcrypt is a modern library for one-way hashing of passwords. It supports DES, MD5, NTHASH, SUNMD5, SHA-2-256, SHA-2-512, and bcrypt-based password hashes It provides the traditional Unix 'crypt' and 'crypt_r' interfaces, as well as a set of extended interfaces like 'crypt_gensalt'. 
+
+      website: 'https://github.com/besser82/libxcrypt'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      section: libs
+    tools-required:
+      - host-autoconf
+      - host-automake
+      - host-gcc
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--host=@TARGET@'
+        - '--prefix=/usr'
+        - '--with-sysroot=@SYSROOT_DIR@'
+        - '--enable-obsolete-api=yes'
+        - '--disable-xcrypt-compat-files'
+        - '--disable-static'
+    build:
+      - args: ['make', '-j@PARALLELISM@']
+      - args: ['make', 'install']
         environ:
           DESTDIR: '@THIS_COLLECT_DIR@'
 #

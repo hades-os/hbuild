@@ -184,3 +184,31 @@
     format: 'tar.xz'
     extract-path: 'dpkg-v1.22.11'
     extract-strip: 1
+
+  - name: 'libxcrypt'
+    subdir: 'ports'
+    version: '4.4.36'
+
+    url: 'https://repo.hades-os.org/sources/libxcrypt-v4.4.36.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'libxcrypt-v4.4.36'
+    extract-strip: 1
+
+  - name: 'shadow'
+    subdir: 'ports'
+    version: '4.8.1'
+
+    url: 'https://repo.hades-os.org/sources/shadow-v4.8.1.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'shadow-v4.8.1'
+    extract-strip: 1
+
+  - name: 'linux'
+    subdir: 'ports'
+    version: '6.1.8'
+
+    url: 'https://repo.hades-os.org/sources/linux-v6.1.8.tar.xz'
+    format: 'tar.xz'
+    extract-path: 'linux-v6.1.8'
+    extract-strip: 1
+

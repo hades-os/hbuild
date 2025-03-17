@@ -255,10 +255,19 @@ class HBuild:
 
     def build_dep_tree(self):
         self.dep_dict: dict[str: list[str]] = {}
-        for source in self.sources:
-            self.dep_dict[f"source[{source.name}]"] = source.deps()
-
         self.pkg_idxs = {}
+
+        for source in self.sources:
+            source_fmt_name = f"source[{source.name}]"
+
+            self.dep_dict[source_fmt_name] = source.deps()
+            if source_fmt_name not in self.pkg_idxs:
+                self.pkg_idxs[source_fmt_name] = self.dep_graph.add_node(source_fmt_name)
+
+            for dep in source.deps():
+                if dep not in self.pkg_idxs:
+                    self.pkg_idxs[dep] = self.dep_graph.add_node(dep)
+
         for tool in self.tools:
             self.dep_dict[tool.name] = tool.deps()
 

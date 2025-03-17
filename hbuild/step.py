@@ -49,6 +49,7 @@ class Step:
 
         source_dir = os.path.join(sources_dir, self.package.source_dir)
         source_root = sources_dir
+        build_root = build_dir
 
         this_collect_dir = os.path.join(collect_dir, self.package.dir)
 
@@ -61,12 +62,13 @@ class Step:
         replaced_workdir = replaced_workdir.replace("@THIS_SOURCE_DIR@", source_dir)
         replaced_workdir = replaced_workdir.replace("@THIS_COLLECT_DIR@", this_collect_dir)
 
+        replaced_workdir = replaced_workdir.replace("@BUILD_ROOT@", build_root)
         replaced_workdir = replaced_workdir.replace("@SOURCE_ROOT@", source_root)
+
         replaced_workdir = replaced_workdir.replace("@SYSROOT_DIR@", sysroot_dir)
 
         replaced_workdir = replaced_workdir.replace("@PREFIX@", prefix_dir)
-        replaced_workdir = replaced_workdir.replace("@TARGET_X64@", system_targets["x86_64"])
-        replaced_workdir = replaced_workdir.replace("@TARGET_X32@", system_targets["i686"])
+        replaced_workdir = replaced_workdir.replace("@TARGET@", system_targets["x86_64"])
         replaced_workdir = replaced_workdir.replace("@PARALLELISM@", str(parallelism))
 
         for arg in self.args:
@@ -74,12 +76,13 @@ class Step:
             arg = arg.replace("@THIS_COLLECT_DIR@", this_collect_dir)
             arg = arg.replace("@THIS_BUILD_DIR@", base_workdir)
 
+            arg = arg.replace("@BUILD_ROOT@", build_root)
             arg = arg.replace("@SOURCE_ROOT@", source_root)
+            
             arg = arg.replace("@SYSROOT_DIR@", sysroot_dir)
 
             arg = arg.replace("@PREFIX@", prefix_dir)
-            arg = arg.replace("@TARGET_X64@", system_targets["x86_64"])
-            arg = arg.replace("@TARGET_X32@", system_targets["i686"])
+            arg = arg.replace("@TARGET@", system_targets["x86_64"])
             arg = arg.replace("@PARALLELISM@", str(parallelism))
 
             replaced_args.append(arg)
@@ -89,12 +92,13 @@ class Step:
             env_val = env_val.replace("@THIS_COLLECT_DIR@", this_collect_dir)
             env_val = env_val.replace("@THIS_BUILD_DIR@", base_workdir)
 
+            env_val = env_val.replace("@BUILD_ROOT@", build_root)
             env_val = env_val.replace("@SOURCE_ROOT@", source_root)
+
             env_val = env_val.replace("@SYSROOT_DIR@", sysroot_dir)
 
             env_val = env_val.replace("@PREFIX@", prefix_dir)
-            env_val = env_val.replace("@TARGET_X64@", system_targets["x86_64"])
-            env_val = env_val.replace("@TARGET_X32@", system_targets["i686"])
+            env_val = env_val.replace("@TARGET@", system_targets["x86_64"])
             env_val = env_val.replace("@PARALLELISM@", str(parallelism))
 
             replaced_environ[env_var] = env_val     

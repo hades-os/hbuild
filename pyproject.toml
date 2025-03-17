@@ -17,6 +17,7 @@ pydot = "^3.0.3"
 pillow = "^11.0.0"
 jsonpickle = "^4.0.1"
 argparse-dataclass = "^2.0.0"
+dearpygui = "^2.0.0"
 
 [build-system]
 requires = ["poetry-core"]

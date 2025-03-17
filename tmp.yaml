@@ -1,0 +1,9 @@
+﻿      # Huge hack: coreutils does not compile the build-machine binary make-prime-list
+      # using the build-machine compiler. Hence, build and invoke the binary manually here.
+      - args: ['@THIS_SOURCE_DIR@/configure']
+      - args: ['make', 'src/make-prime-list']
+      - args: 
+        - |
+            ./src/make-prime-list 5000 > @THIS_SOURCE_DIR@/src/primes.h
+        shell: True
+      - args: ['rm', '-rf', '@THIS_BUILD_DIR@/*']
