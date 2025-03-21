@@ -16,11 +16,8 @@
         },
 
         "from_source": {
-            "description": "Build it from a preexisting source",
+            "description": "Source package",
             "type": "string"
-        },
-        "source": {
-            "$ref": "/hbuild/source"
         },
 
         "system-package": {

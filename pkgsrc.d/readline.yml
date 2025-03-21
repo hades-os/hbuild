@@ -1,0 +1,38 @@
+﻿source:
+  name: 'readline'
+  subdir: 'ports'
+  version: '8.1'
+
+  git: 'https://git.savannah.gnu.org/git/readline.git'
+  tag: 'readline-8.1'
+
+packages:
+  - name: readline
+    version: '8.1'
+    from_source: readline
+    metadata:
+      summary: GNU readline and history libraries
+      description:  The GNU readline library aids in the consistency of user interface across discrete programs that need to provide a command line interface. 
+
+      website: 'https://tiswww.case.edu/php/chet/readline/rltop.html'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      section: libs
+    tools-required:
+      - host-gcc
+    pkgs-required:
+      - ncurses
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--host=@TARGET@'
+        - '--prefix=/usr'
+        - '--disable-static'
+        - '--enable-multibyte'
+        - '--with-curses'
+    build:
+      - args: ['make', 'SHLIB_LIBS="-lncursesw"', '-j@PARALLELISM@']
+      - args: ['make', 'SHLIB_LIBS="-lncursesw"', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']
+        environ:
+          DESTDIR: '@THIS_COLLECT_DIR@'
+      - args: ['patchelf', '--set-soname', 'libreadline.so.8', '@THIS_COLLECT_DIR@/usr/lib/libreadline.so.8']
+      - args: ['patchelf', '--set-soname', 'libhistory.so.8', '@THIS_COLLECT_DIR@/usr/lib/libhistory.so.8']

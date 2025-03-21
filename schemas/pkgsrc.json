@@ -1,0 +1,32 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://hades.org/hbuild/pkgsrc",
+    "title": "PkgSrc",
+    "description": "hbuild pkgsrc",
+    "type": "object",
+    "properties": {
+        "source": {
+            "$ref": "/hbuild/source"
+        },
+
+        "tools": {
+            "description": "Tools produced by this pkgsrc file",
+            "type": "array",
+            "items": {
+                "$ref": "/hbuild/tool"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+
+        "packages": {
+            "description": "System packages produced by this pkgsrc file",
+            "type": "array",
+            "items": {
+                "$ref": "/hbuild/package"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        }
+    }
+}

@@ -1,7 +1,8 @@
-diff -Naur ../readline-v8.1-orig/support/config.sub ./support/config.sub
---- ../readline-v8.1-orig/support/config.sub	2025-01-02 18:49:00.183225473 -0500
-+++ ./support/config.sub	2025-01-02 18:49:36.235003134 -0500
-@@ -1695,7 +1695,7 @@
+diff --git a/support/config.sub b/support/config.sub
+index c874b7a..a36a117 100755
+--- a/support/config.sub
++++ b/support/config.sub
+@@ -1695,7 +1695,7 @@ case $os in
  	     | hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris* \
  	     | sym* |  plan9* | psp* | sim* | xray* | os68k* | v88r* \
  	     | hiux* | abug | nacl* | netware* | windows* \
@@ -10,10 +11,11 @@ diff -Naur ../readline-v8.1-orig/support/config.sub ./support/config.sub
  	     | mpw* | magic* | mmixware* | mon960* | lnews* \
  	     | amigaos* | amigados* | msdos* | newsos* | unicos* | aof* \
  	     | aos* | aros* | cloudabi* | sortix* | twizzler* \
-diff -Naur ../readline-v8.1-orig/support/shlib-install ./support/shlib-install
---- ../readline-v8.1-orig/support/shlib-install	2025-01-02 18:49:00.183225473 -0500
-+++ ./support/shlib-install	2025-01-02 18:50:18.694734837 -0500
-@@ -71,7 +71,7 @@
+diff --git a/support/shlib-install b/support/shlib-install
+index 661355d..cfc237e 100755
+--- a/support/shlib-install
++++ b/support/shlib-install
+@@ -71,7 +71,7 @@ fi
  # Cygwin installs both a dll (which must go in $BINDIR) and an implicit
  # link library (in $libdir)
  case "$host_os" in
@@ -22,7 +24,7 @@ diff -Naur ../readline-v8.1-orig/support/shlib-install ./support/shlib-install
  	if [ -z "$uninstall" ]; then
  		chmod 755 ${INSTALLDIR}/${LIBNAME}
  	fi ;;
-@@ -146,7 +146,7 @@
+@@ -146,7 +146,7 @@ bsdi4*|*gnu*|darwin*|macosx*|netbsd*|mirbsd*)
  	fi
  	;;
  

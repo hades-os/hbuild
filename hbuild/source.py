@@ -16,6 +16,9 @@ import tarfile
 from tarfile import TarInfo
 
 from rich.progress import Progress
+from rich import print as rich_print
+
+from subprocess import CalledProcessError
 
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -95,11 +98,6 @@ class SourcePackage:
             self.version = tool_package.version
         else:
             self.version = source_properties["version"]
-
-        if "rolling-version" in source_properties:
-            self.rolling_version = source_properties["rolling_version"]
-        else:
-            self.rolling_version = False
 
         if "url" in source_properties:
             self.source_type = SourceType.URL
@@ -192,11 +190,18 @@ class SourcePackage:
 
     def apply_patches(self, sources_dir,  patches_dir):
         self.patches_dir = os.path.join(patches_dir, self.name)
-        for subdir, dirs, files in os.walk(self.patches_dir):
+        for dir, _, files in os.walk(self.patches_dir):
             for file in files:
-                patch_path = os.path.join(subdir, file)
+                patch_path = os.path.join(dir, file)
+                print(patch_path)
 
-                subprocess.run([f"patch -f -p1 < {patch_path}"], cwd=os.path.join(sources_dir, self.dir), shell=True)
+            try:
+                res = subprocess.check_output([f"patch -f -p1 < {patch_path}"], cwd=os.path.join(sources_dir, self.dir), shell=True,
+                    stderr=subprocess.STDOUT, universal_newlines=True)
+                print(res)
+            except CalledProcessError as err:
+                rich_print(f"[red] Error patching source package {self.name}: exit {err.returncode}")
+                raise err
 
     def deps(self):
         deps = []
@@ -215,7 +220,7 @@ class SourcePackage:
     def prepare(self, sources_dir, system_prefix, patches_dir):
         self.acquire(sources_dir)
         self.extract(sources_dir)
-#        self.apply_patches(sources_dir, patches_dir)
+        self.apply_patches(sources_dir, patches_dir)
 
     def regenerate(self, sources_dir, system_dir, system_prefix, system_targets):
         for step in self.regenerate_steps:

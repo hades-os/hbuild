@@ -36,7 +36,7 @@ class Step:
         else:
             self.shell = False
 
-    def do_substitutions(self, system_prefix, system_targets,  sources_dir, build_dir, collect_dir, system_dir):
+    def do_substitutions(self, system_prefix, system_targets,  sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root):
         replaced_args = []
         replaced_environ: dict[str, str]= {}
 
@@ -47,13 +47,13 @@ class Step:
         else:
             replaced_workdir = self.workdir
 
-        source_dir = os.path.join(sources_dir, self.package.source_dir)
+        source_dir = source_dir
         source_root = sources_dir
-        build_root = build_dir
+        build_root = builds_dir
 
         this_collect_dir = os.path.join(collect_dir, self.package.dir)
 
-        sysroot_dir = system_dir
+        sysroot_dir = system_root
         prefix_dir = system_prefix
 
         parallelism = self.cpu_count
@@ -112,8 +112,8 @@ class Step:
 
         return replaced_args, replaced_environ, replaced_workdir
 
-    def exec(self, system_prefix, system_targets,  sources_dir, build_dir, collect_dir, system_dir):
-        args, environ, workdir = self.do_substitutions(system_prefix, system_targets, sources_dir, build_dir, collect_dir, system_dir)
+    def exec(self, system_prefix, system_targets,  sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root):
+        args, environ, workdir = self.do_substitutions(system_prefix, system_targets,  sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root)
 
         try:
             res = subprocess.check_output(args, env = environ, cwd = workdir, shell = self.shell, 

@@ -24,8 +24,8 @@ from rich import print as rich_print
 from jsonschema import Draft7Validator
 
 from .source import SourcePackage
-from .tool import ToolPackage,ToolSourceType
-from .package import Package, PackageSourceType
+from .tool import ToolPackage
+from .package import Package
 
 class HBuildState(int, Enum):
     CONFIGURED = 1
@@ -42,9 +42,14 @@ class HBuild:
         self.registry = Registry()
 
         self.load_schemas()
-        self.load_sources_yml()
-        self.load_tools_yml()
-        self.load_packages_yml()
+
+        self.sources: list[SourcePackage] = []
+        self.tools: list[ToolPackage] = []
+        self.packages: list[Package] = []
+
+        self.source_linkages: dict[str, list[str]] = {}
+        self.load_pkgsrc_dir()
+        self.link_sources()
 
         self.sources_dir = Path(self.config["hbuild"]["sources_dir"]).resolve().as_posix()
         self.tools_dir = Path(self.config["hbuild"]["tools_dir"]).resolve().as_posix()
@@ -57,7 +62,6 @@ class HBuild:
         self.system_prefix = Path(self.config["hbuild"]["system"]["prefix"]).resolve().as_posix()
 
         self.prefix_symlink = Path(self.system_dir, "prefix").resolve()
-
         if self.prefix_symlink.exists() is False:
             self.prefix_symlink.symlink_to(self.system_prefix, target_is_directory=True)
 
@@ -84,9 +88,9 @@ class HBuild:
 
     def load_schemas(self) -> None:
         self.schemas = {}
-        for subdir, dirs, files in os.walk(self.config["hbuild"]["schema_dir"]):
+        for dir, _, files in os.walk(self.config["hbuild"]["schema_dir"]):
             for file in files:
-                schema_path = os.path.join(subdir, file)
+                schema_path = os.path.join(dir, file)
                 schema_id, schema_json = self.load_schema(schema_path)
                 schema_name = schema_id.split('/')[4]
 
@@ -95,52 +99,69 @@ class HBuild:
                 self.registry = self.registry.with_resource(schema_id, schema)
                 self.schemas[schema_name] = schema_json
 
-    def load_sources_yml(self) -> None:
-        with open(self.config["hbuild"]["sources_yml"]) as f:
-            self.sources_yml = yaml.load(f, Loader=yaml.CLoader)["sources"]
+    def link_source(self, package_name, source_name):
+        if source_name in self.source_linkages.keys():
+            self.source_linkages[source_name].append(package_name)
+        else:
+            self.source_linkages[source_name] = [package_name]
 
-    def load_sources(self) -> None:
-        self.sources: list[SourcePackage] = []
-        for source_yml in self.sources_yml:
-            source_validator = Draft7Validator(self.schemas["source"], registry = self.registry)
-            source_validator.validate(source_yml)
+    def link_sources(self):
+        for source_name, pkg_names in self.source_linkages.items():
+            for pkg_name in pkg_names:
+                tool = self.find_tool(pkg_name)
+                if tool is None:
+                    package = self.find_package(pkg_name)
+                    if package is None:
+                        print(package, self.packages)
+                        raise Exception(f"Unable to resolve package {pkg_name}")
+                    source_package = self.find_source(source_name)
+                    if source_package is None:
+                        raise Exception(f"Unable to resolve source {source_name}")
+                    package.link_source(source_package)
+                else:
+                    source_package = self.find_source(source_name)
+                    if source_package is None:
+                        raise Exception(f"Unable to resolve source {source_name}")
 
-            self.sources.append(SourcePackage(source_yml))
+                    tool.link_source(source_package)
 
-    def load_tools_yml(self) -> None:
-        with open(self.config["hbuild"]["tools_yml"]) as f:
-            self.tools_yml = yaml.load(f, Loader=yaml.CLoader)["tools"]
+    def load_pkgsrc(self, pkgsrc_file: str) -> object:
+        with open(pkgsrc_file) as f:
+            return yaml.load(f, Loader=yaml.CLoader)
 
-    def load_tools(self) -> None:
-        self.tools: list[ToolPackage] = []
-        for tool_yml in self.tools_yml:
-            tool_validator = Draft7Validator(self.schemas["tool"], registry = self.registry)
-            tool_validator.validate(tool_yml)
+    def load_pkgsrc_dir(self) -> None:
+        for dir, _, files in os.walk(self.config["hbuild"]["pkgsrc_dir"]):
+            for file in files:
+                pkgsrc_path = os.path.join(dir, file)
+                pkgsrc_yml = self.load_pkgsrc(pkgsrc_path)
 
-            if "from_source" in tool_yml:
-                source_package = self.find_source(tool_yml["from_source"])
-            else:
-                source_package = None
+                pkgsrc_validator = Draft7Validator(self.schemas["pkgsrc"], registry=self.registry)
+                pkgsrc_validator.validate(pkgsrc_yml)
 
-            self.tools.append(ToolPackage(tool_yml, source_package))
+                if "source" in pkgsrc_yml:
+                    source_validator = Draft7Validator(self.schemas["source"], registry = self.registry)
+                    source_validator.validate(pkgsrc_yml["source"])
 
-    def load_packages_yml(self) -> None:
-        with open(self.config["hbuild"]["packages_yml"]) as f:
-            self.packages_yml = yaml.load(f, Loader=yaml.CLoader)["packages"]
+                    self.sources.append(SourcePackage(pkgsrc_yml["source"]))
 
-    def load_packages(self) -> None:
-        self.packages: list[Package] = []
-        for package_yml in self.packages_yml:
-            package_validator = Draft7Validator(self.schemas["package"], registry = self.registry)
-            package_validator.validate(package_yml)
+                if "tools" in pkgsrc_yml:
+                    for tool_yml in pkgsrc_yml["tools"]:
+                        tool_validator = Draft7Validator(self.schemas["tool"], registry = self.registry)
+                        tool_validator.validate(tool_yml)
 
-            if "from_source" in package_yml:
-                source_package = self.find_source(package_yml["from_source"])
-            else:
-                source_package = None
+                        tool_package = ToolPackage(tool_yml)
+                        self.link_source(tool_package.name, tool_package.source_name)
+                        self.tools.append(tool_package)                        
+                
+                if "packages" in pkgsrc_yml:
+                    for package_yml in pkgsrc_yml["packages"]:
+                        package_validator = Draft7Validator(self.schemas["package"], registry = self.registry)
+                        package_validator.validate(package_yml)
 
-            self.packages.append(Package(package_yml, source_package))
-
+                        package = Package(package_yml)
+                        self.link_source(package.name, package.source_name)
+                        self.packages.append(package)
+                    
     def make_dirs(self, pkg_idxs):
        for pkg_idx in pkg_idxs:
             pkg_name = self.dep_graph[pkg_idx]
@@ -219,23 +240,6 @@ class HBuild:
         for source in self.sources:
             if source.name == name:
                 return source
-
-        return None
-
-    def find_implicit_source(self, name):
-        for package in self.packages:
-            if package.source_type == PackageSourceType.EXTERNAL_SOURCE:
-                continue
-
-            if package.source.name == name:
-                return package.source
-
-        for tool in self.tools:
-            if tool.source_type == ToolSourceType.EXTERNAL_SOURCE:
-                continue
-
-            if tool.source.name == name:
-                return tool.source
 
         return None
 
@@ -352,11 +356,7 @@ class HBuild:
                 if source_dep is not None:
                     self.pkg_map[node] = self.find_source(source_name)
                 else:
-                    source_dep = self.find_implicit_source(source_name)
-                    if source_dep is None:
-                        raise Exception(f"Unable to resolve source package {source_name}")
-
-                    self.pkg_map[node] = source_dep
+                    raise Exception(f"Unable to resolve source package {source_name}")
             elif bool(stage_match):
                 master_name = stage_match.group(1)
                 stage_name = stage_match.group(2)
@@ -371,8 +371,8 @@ class HBuild:
                 elif self.is_package(node):
                     self.pkg_map[node] = self.find_package(node)
                 else:
-                    self.pkg_map[node] = self.find_source(node)
-
+                    raise Exception(f"Unable to resolve package {node}")
+                
     def resolve_deps(self):
         self.build_dep_tree()
         if len(self.selection) > 0:
@@ -620,10 +620,6 @@ def main():
     args = parser.parse_args()
 
     hbuild = HBuild(args.selection, args.op)
-
-    hbuild.load_sources()
-    hbuild.load_tools()
-    hbuild.load_packages()
 
     hbuild.resolve_deps()
     hbuild.show_deps()

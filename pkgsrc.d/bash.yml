@@ -1,0 +1,43 @@
+﻿source:
+  name: 'bash'
+  subdir: 'ports'
+  version: '5.1'
+
+  git: 'https://git.savannah.gnu.org/git/bash.git'
+  tag: 'bash-5.1'
+  tools_required:
+    - host-autoconf
+    - host-automake
+  regenerate:
+    - args: ['autoconf']
+
+packages:
+  - name: bash
+    version: '5.1'
+    from_source: bash
+    metadata:
+      summary: The standard GNU Bourne again shell
+      description: This package provides the Bourne-Again SHell.
+
+      website: 'https://tiswww.case.edu/php/chet/bash/bashtop.html'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      section: core
+    tools-required:
+      - host-autoconf
+      - host-automake
+      - host-gcc
+    pkgs-required:
+      - ncurses
+      - readline
+      - iconv
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--host=@TARGET@'
+        - '--prefix=/usr'
+        - '--without-bash-malloc'
+        - '--disable-nls'
+        - '--with-installed-readline=@SYSROOT_DIR@/usr'
+    build:
+      - args: ['make', '-j@PARALLELISM@']
+      - args: ['make', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']

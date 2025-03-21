@@ -1,12 +1,12 @@
 from .step import Step
 
 class Stage:
-    def __init__(self, source_data, tool_package):
+    def __init__(self, source_data, package):
         source_properties = source_data
 
         self.name = source_properties["name"]
-        self.dir = tool_package.dir
-        self.source_dir = tool_package.source_dir
+        self.dir = package.dir
+        self.source_dir = None
 
         if "tools-required" in source_properties:
             self.tools_required = source_properties["tools-required"]
@@ -52,6 +52,9 @@ class Stage:
             deps.append(pkg)
         
         return deps
+
+    def link_source(self, source):
+        self.source_dir = source.source_dir
     
     def __str__(self):
         return f"Stage {self.name}: {self.tools_required}, {self.pkgs_required}"

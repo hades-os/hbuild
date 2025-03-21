@@ -1,8 +1,6 @@
 [hbuild]
 schema_dir = "schemas"
-sources_yml = "sources.yml"
-tools_yml = "tools.yml"
-packages_yml = "packages.yml"
+pkgsrc_dir = "pkgsrc.d"
 
 sources_dir = "sources"
 tools_dir = "tools"

@@ -7,28 +7,18 @@ from .step import Step
 from .source import SourcePackage
 from .stage import Stage
 
-class ToolSourceType(Enum):
-    EXTERNAL_SOURCE = 1
-    IMPLICIT_SOURCE = 2
-
 class ToolPackage:
-    def __init__(self, source_data, source_package: SourcePackage):
+    def __init__(self, source_data):
         source_properties = source_data
 
         self.name = source_properties["name"]
         self.version = source_properties["version"]
 
         self.dir = self.name
-        if "from_source" in source_properties:
-            self.source_type = ToolSourceType.EXTERNAL_SOURCE
-            self.source = source_properties["from_source"]
 
-            self.source_dir = source_package.source_dir
-        else:
-            self.source_type = ToolSourceType.IMPLICIT_SOURCE
-            self.source = SourcePackage(source_properties["source"], implicit_source = True, tool_package = self)
-
-            self.source_dir = self.source.source_dir
+        self.source = None
+        self.source_dir = None
+        self.source_name = source_properties["from_source"]
 
         if "tools-required" in source_properties:
             self.tools_required = source_properties["tools-required"]
@@ -98,14 +88,14 @@ class ToolPackage:
         for pkg in self.pkgs_required:
             deps.append(pkg)
 
-        if self.source_type == ToolSourceType.IMPLICIT_SOURCE:
-            deps.append(f"source[{self.source.name}]")
-            for tool in self.source.tools_required:
-                deps.append(tool)
-        else:
-            deps.append(f"source[{self.source}]")
-        
+        deps.append(f"source[{self.source_name}]")
         return deps
+
+    def link_source(self, source_package: SourcePackage):
+        self.source = source_package
+        self.source_dir = source_package.source_dir
+        for stage in self.stages:
+            stage.link_source(source_package)
 
     def make_dirs(self, tools_dir, builds_dir):
         os.makedirs(os.path.join(tools_dir, self.dir), exist_ok = True)

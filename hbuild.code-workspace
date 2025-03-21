@@ -13,7 +13,10 @@
             "*.pk": "yaml",
             "*.rmd": "markdown",
             "*.inc": "c",
-            "cstdlib": "c"
-        }
+            "cstdlib": "c",
+            "stdio.h": "c",
+            "string.h": "c"
+        },
+        "C_Cpp.default.compileCommands": "/home/racemus/Projects/hades/user/sources/mlibc/build/compile_commands.json"
     }
 }

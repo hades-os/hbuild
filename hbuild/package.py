@@ -9,29 +9,25 @@ from .step import Step
 from .source import SourcePackage
 from .stage import Stage
 
-class PackageSourceType(Enum):
-    EXTERNAL_SOURCE = 1
-    IMPLICIT_SOURCE = 2
-
 class Package:
-    def __init__(self, source_data, source_package: SourcePackage):
+    def __init__(self, source_data, sources_dir,  builds_dir, packages_dir, system_targets, system_prefix, system_root):
         source_properties = source_data
 
         self.name = source_properties["name"]
         self.version = source_properties["version"]
 
-        self.dir = self.name
+        self.sources_dir = sources_dir
+        self.builds_dir = builds_dir
 
-        if "from_source" in source_properties:
-            self.source_type = PackageSourceType.EXTERNAL_SOURCE
-            self.source = source_properties["from_source"]
+        self.build_dir = os.path.join(builds_dir, self.name)
+        self.package_dir = os.path.join(packages_dir, self.name)
+        self.system_prefix = system_prefix
+        self.system_targets = system_targets
+        self.system_root = system_root
 
-            self.source_dir = source_package.source_dir
-        else:
-            self.source_type = PackageSourceType.IMPLICIT_SOURCE
-            self.source = SourcePackage(source_properties["source"], implicit_source = True, tool_package = self)
-
-            self.source_dir = self.source.source_dir
+        self.source = None
+        self.source_dir = None
+        self.source_name = source_properties["from_source"]
 
         self.metadata = source_properties["metadata"]
 
@@ -114,22 +110,22 @@ class Package:
         for pkg in self.pkgs_required:
             deps.append(pkg)
 
-        if self.source_type == PackageSourceType.IMPLICIT_SOURCE:
-            deps.append(f"source[{self.source.name}]")
-            for tool in self.source.tools_required:
-                deps.append(tool)
-        else:
-            deps.append(f"source[{self.source}]")
-
+        deps.append(f"source[{self.source_name}]")
         return deps
+    
+    def link_source(self, source_package: SourcePackage):
+        self.source = source_package
+        self.source_dir = os.path.join(self.sources_dir, source_package.source_dir)
+        for stage in self.stages:
+            stage.link_source(source_package)
 
-    def make_dirs(self, packages_dir, builds_dir):
-        os.makedirs(os.path.join(packages_dir, self.dir), exist_ok = True)
-        os.makedirs(os.path.join(builds_dir, self.dir), exist_ok = True)
+    def make_dirs(self):
+        os.makedirs(self.package_dir, exist_ok = True)
+        os.makedirs(self.build_dir, exist_ok = True)
 
-    def prune_system(self, system_dir):
+    def prune_system(self):
         deleted = set()
-        for dir, subdirs, files in os.walk(system_dir, topdown=False):
+        for dir, subdirs, files in os.walk(self.system_root, topdown=False):
             still_has_subdirs = False
             for subdir in subdirs:
                 if os.path.join(dir, subdir) not in deleted:
@@ -140,17 +136,17 @@ class Package:
                 os.rmdir(dir)
                 deleted.add(dir)
 
-    def clean_dirs(self, packages_dir, builds_dir, system_dir):
-        pkg_root_dir = os.path.join(packages_dir, self.dir)
+    def clean_dirs(self):
+        pkg_root_dir = self.package_dir
 
-        for dir, _, files in os.walk(os.path.join(packages_dir, self.dir)):
+        for dir, _, files in os.walk(pkg_root_dir):
             for f in files:
                 f_path = os.path.join(dir, f)
                 if os.path.lexists(f_path):
                     f_rel_path = os.path.relpath(f_path, pkg_root_dir)
 
                     f_pkg_path = os.path.join(pkg_root_dir, f_rel_path)
-                    f_system_path =os.path.join(system_dir, f_rel_path)
+                    f_system_path =os.path.join(self.system_root, f_rel_path)
 
                     if os.path.lexists(f_pkg_path):
                         os.unlink(f_pkg_path)
@@ -158,40 +154,52 @@ class Package:
                     if os.path.lexists(f_system_path):
                         os.unlink(f_system_path)
                         
-        if os.path.exists(os.path.join(builds_dir, self.dir)):
-            shutil.rmtree(os.path.join(builds_dir, self.dir))
-        if os.path.exists(os.path.join(packages_dir, self.dir)):
-            shutil.rmtree(os.path.join(packages_dir, self.dir))
-        self.prune_system(system_dir)
+        if os.path.exists(self.build_dir):
+            shutil.rmtree(self.build_dir)
+        if os.path.exists(self.package_dir):
+            shutil.rmtree(self.package_dir)
+        self.prune_system(self.system_root)
+    
+    def exec_steps(self, steps: list[Step]):
+        for step in steps:
+            step.exec(
+                self.system_prefix,
+                self.system_targets,
+                self.sources_dir,
+                self.builds_dir,
 
-    def configure(self, sources_dir,  builds_dir, packages_dir, system_prefix, system_targets, system_dir):
-        for step in self.configure_steps:
-            step.exec(system_prefix, system_targets, sources_dir, builds_dir, packages_dir, system_dir)
+                self.source_dir,
+                self.build_dir,
 
-    def build(self, sources_dir,  builds_dir, packages_dir, system_prefix, system_targets, system_dir, stage: Stage = None):
+                self.package_dir,
+                self.system_root
+            )
+
+    def configure(self):
+        self.exec_steps(self.configure_steps)
+
+    def build(self, stage: Stage = None):
         if stage is None:
-            for step in self.build_steps:
-                step.exec(system_prefix, system_targets, sources_dir, builds_dir, packages_dir, system_dir)
+            self.exec_steps(self.build_steps)
         else:
-            for step in stage.build_steps:
-                step.exec(system_prefix, system_targets, sources_dir, builds_dir, packages_dir, system_dir)
+            self.exec_steps(stage.build_steps)
 
-    def files_size(self, packages_dir):
+    def files_size(self):
             total_size = 0
-            for dir, subdirs, files in os.walk(os.path.join(packages_dir, self.dir)):
+            for dir, subdirs, files in os.walk(self.package_dir):
                 for _ in subdirs:
                     total_size += 1024
                 for file in files:
                     total_size += math.ceil(os.path.getsize(os.path.join(dir, file)) / 1024)
 
-    def copy_system(self, packages_dir, system_dir):
-        subprocess.run(['rsync', '-aq', '--exclude=DEBIAN',  f"{os.path.join(packages_dir, self.dir)}/", f"{system_dir}"])
+    def copy_system(self):
+        subprocess.run(['rsync', '-aq', '--exclude=DEBIAN',  f"{self.package_dir}/", f"{self.system_dir}"])
 
     def format_description(self):
         return f"""Description: {self.metadata["summary"]}
  {self.metadata["description"]}"""
 
-    def make_control(self, packages_dir, deps_dict: dict[str, str]):
+    def make_control(self, deps_dict: dict[str, str]):
         if len(deps_dict) > 0:
             deps: list[str] = [f"{name} (>={version})" for name, version in deps_dict.items()]
 
@@ -202,7 +210,7 @@ Architecture: {self.metadata["architecture"] if "metadata" in self.metadata else
 Section: {self.metadata["section"]}
 Maintainer: {self.metadata["maintainer"]}
 Homepage: {self.metadata["website"]}
-Installed-Size: {self.files_size(packages_dir)}
+Installed-Size: {self.files_size()}
 Depends: {", ".join(deps)}
 """
         else:
@@ -213,14 +221,14 @@ Architecture: {self.metadata["architecture"] if "metadata" in self.metadata else
 Section: {self.metadata["section"]}
 Maintainer: {self.metadata["maintainer"]}
 Homepage: {self.metadata["website"]}
-Installed-Size: {self.files_size(packages_dir)}
+Installed-Size: {self.files_size()}
 """
 
-    def make_deb(self, packages_dir, deps_dict: dict[str, str]):
-        control_string = self.make_control(packages_dir, deps_dict)
+    def make_deb(self, deps_dict: dict[str, str]):
+        control_string = self.make_control(deps_dict)
 
-        os.makedirs(os.path.join(packages_dir, self.dir, "DEBIAN"), exist_ok=True)
-        with open(os.path.join(packages_dir, self.dir, "DEBIAN", "control"), 'w+') as control_file:
+        os.makedirs(os.path.join(self.package_dir, "DEBIAN"), exist_ok=True)
+        with open(os.path.join(self.package_dir, "DEBIAN", "control"), 'w+') as control_file:
             control_file.write(control_string)
 
         subprocess.run(["dpkg-deb", "--root-owner-group", "--build", os.path.join(packages_dir, self.dir), packages_dir])

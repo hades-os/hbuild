@@ -1,22 +1,11 @@
-diff -Naur ../automake-v1.16-orig/lib/config.sub ./lib/config.sub
---- ../automake-v1.16-orig/lib/config.sub       2025-01-02 19:45:20.493145533 -0500
-+++ ./lib/config.sub      2025-01-02 19:45:43.433298302 -0500
-@@ -1723,7 +1723,7 @@
-             | hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris* \
-             | sym* |  plan9* | psp* | sim* | xray* | os68k* | v88r* \
-             | hiux* | abug | nacl* | netware* | windows* \
--            | os9* | macos* | osx* | ios* \
-+            | os9* | macos* | osx* | ios* | hades* \
-             | mpw* | magic* | mmixware* | mon960* | lnews* \
-             | amigaos* | amigados* | msdos* | newsos* | unicos* | aof* \
-             | aos* | aros* | cloudabi* | sortix* | twizzler* \
-diff -Naur ../automake-v1.16-orig/lib/config.guess ./lib/config.guess
---- ../automake-v1.16-orig/lib/config.guess     2025-01-02 19:45:20.493145533 -0500
-+++ ./lib/config.guess    2025-01-02 19:46:55.425717672 -0500
-@@ -963,6 +963,12 @@
-        GNU_REL=`echo "$UNAME_RELEASE" | sed -e 's/[-(].*//'`
-        GUESS=$UNAME_MACHINE-unknown-$GNU_SYS$GNU_REL-$LIBC
-        ;;
+diff --git a/lib/config.guess b/lib/config.guess
+index e81d3ae7c..b54f1a255 100755
+--- a/lib/config.guess
++++ b/lib/config.guess
+@@ -963,6 +963,12 @@ EOF
+ 	GNU_REL=`echo "$UNAME_RELEASE" | sed -e 's/[-(].*//'`
+ 	GUESS=$UNAME_MACHINE-unknown-$GNU_SYS$GNU_REL-$LIBC
+ 	;;
 +    x86_64:[Hh]ades:*:*|i?86:[Hh]ades:*:*)
 +    GUESS="$UNAME_MACHINE-pc-hades"
 +    ;;
@@ -24,5 +13,18 @@ diff -Naur ../automake-v1.16-orig/lib/config.guess ./lib/config.guess
 +    GUESS="$UNAME_MACHINE-unknown-hades"
 +    ;;
      *:Minix:*:*)
-        GUESS=$UNAME_MACHINE-unknown-minix
-        ;;
+ 	GUESS=$UNAME_MACHINE-unknown-minix
+ 	;;
+diff --git a/lib/config.sub b/lib/config.sub
+index d74fb6dea..c8a7dca7d 100755
+--- a/lib/config.sub
++++ b/lib/config.sub
+@@ -1723,7 +1723,7 @@ case $os in
+ 	     | hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris* \
+ 	     | sym* |  plan9* | psp* | sim* | xray* | os68k* | v88r* \
+ 	     | hiux* | abug | nacl* | netware* | windows* \
+-	     | os9* | macos* | osx* | ios* \
++	     | os9* | macos* | osx* | ios* | hades* \
+ 	     | mpw* | magic* | mmixware* | mon960* | lnews* \
+ 	     | amigaos* | amigados* | msdos* | newsos* | unicos* | aof* \
+ 	     | aos* | aros* | cloudabi* | sortix* | twizzler* \

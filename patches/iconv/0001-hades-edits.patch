@@ -1,19 +1,8 @@
-diff -Naur ../iconv-v1.17-orig/libcharset/Makefile.devel ./libcharset/Makefile.devel
---- ../iconv-v1.17-orig/libcharset/Makefile.devel	2025-01-02 19:17:48.278785677 -0500
-+++ ./libcharset/Makefile.devel	2025-01-02 19:18:06.650777571 -0500
-@@ -5,7 +5,7 @@
- MAKE = make
- AUTOCONF = autoconf
- AUTOHEADER = autoheader
--ACLOCAL = aclocal-1.16
-+ACLOCAL = aclocal
- CP = cp
- RM = rm -f
- 
-diff -Naur ../iconv-v1.17-orig/Makefile.devel ./Makefile.devel
---- ../iconv-v1.17-orig/Makefile.devel	2025-01-02 19:17:48.262785683 -0500
-+++ ./Makefile.devel	2025-01-02 19:17:54.010783469 -0500
-@@ -6,8 +6,8 @@
+diff --git a/Makefile.devel b/Makefile.devel
+index 3102ad2b..d49e74a2 100644
+--- a/Makefile.devel
++++ b/Makefile.devel
+@@ -6,8 +6,8 @@ SHELL = /bin/sh
  MAKE = make
  AUTOCONF = autoconf
  AUTOHEADER = autoheader
@@ -24,3 +13,16 @@ diff -Naur ../iconv-v1.17-orig/Makefile.devel ./Makefile.devel
  GPERF = gperf
  CC = gcc -Wall
  CFLAGS = -O
+diff --git a/libcharset/Makefile.devel b/libcharset/Makefile.devel
+index 7a991cd5..3e0e2ca0 100644
+--- a/libcharset/Makefile.devel
++++ b/libcharset/Makefile.devel
+@@ -5,7 +5,7 @@ SHELL = /bin/sh
+ MAKE = make
+ AUTOCONF = autoconf
+ AUTOHEADER = autoheader
+-ACLOCAL = aclocal-1.16
++ACLOCAL = aclocal
+ CP = cp
+ RM = rm -f
+ 

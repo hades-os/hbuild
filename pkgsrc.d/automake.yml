@@ -1,0 +1,36 @@
+﻿source:
+  name: automake
+  subdir: 'ports'
+  version: '1.16'
+
+  git: 'https://git.savannah.gnu.org/git/automake.git'
+  tag: 'v1.16.5'
+
+  tools-required:
+    - host-autoconf
+  regenerate:
+    - args: ['./bootstrap']
+    - args: ['git', 'clone', 'https://github.com/autoconf-archive/autoconf-archive.git', '--branch=v2022.02.11', '--depth=1']
+
+tools:
+  - name: host-automake
+    version: '1.16'
+    from_source: automake
+    tools-required:
+      - host-autoconf
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--prefix=@PREFIX@'
+    compile:
+      - args: ['make', 'bin/aclocal-1.16', 'bin/automake-1.16', '-j@PARALLELISM@']
+        environ:
+          PATH: '@THIS_COLLECT_DIR@/bin'
+
+      - args: ['make', '-j@PARALLELISM@']
+        environ:
+          PATH: '@THIS_COLLECT_DIR@/bin'
+    install:
+      - args: ['make', 'install-strip']
+      - args: ['ln', '-sf', '@PREFIX@/share/aclocal-1.16', '@PREFIX@/share/aclocal']
+      - args: ['cp', '-r', '@THIS_SOURCE_DIR@/autoconf-archive/m4/.', '@PREFIX@/share/aclocal-1.16/']

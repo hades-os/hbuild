@@ -1,0 +1,74 @@
+﻿source:
+  name: 'iconv'
+  subdir: 'ports'
+  version: '1.17'
+
+  git: 'https://git.savannah.gnu.org/git/libiconv.git'
+  tag: 'v1.17'
+  tools-required:
+    - host-autoconf
+    - host-automake
+    - host-libtool
+    - host-pkg-config
+    - host-gettext
+  regenerate:
+    - args: ['./gitsub.sh', 'pull']
+    - args: ['git', 'checkout', '044bf893acee0a55b22b4be0ede0e3ce010c480a']
+      workdir: '@THIS_SOURCE_DIR@/gnulib'
+    - args: ['./autogen.sh']
+      environ:
+        NOCONFIGURE: 'yes'
+    - args: ['cp',
+        '@PREFIX@/share/automake-1.16/config.sub',
+        '@THIS_SOURCE_DIR@/build-aux/']
+    - args: ['cp',
+        '@PREFIX@/share/automake-1.16/config.sub',
+        '@THIS_SOURCE_DIR@/libcharset/build-aux/']
+    - args: ['cp',
+        '@PREFIX@/share/aclocal/libtool.m4',
+        '@THIS_SOURCE_DIR@/m4/']
+    - args: ['cp',
+        '@PREFIX@/share/aclocal/libtool.m4',
+        '@THIS_SOURCE_DIR@/libcharset/m4/']
+    - args: ['cp',
+        '@PREFIX@/share/libtool/build-aux/ltmain.sh',
+        '@THIS_SOURCE_DIR@/libcharset/build-aux/']
+    - args: ['cp',
+        '@PREFIX@/share/libtool/build-aux/ltmain.sh',
+        '@THIS_SOURCE_DIR@/build-aux/']
+    - args: ['cp',
+        '@PREFIX@/share/aclocal/ltversion.m4',
+        '@THIS_SOURCE_DIR@/m4/']
+    - args: ['cp',
+        '@PREFIX@/share/aclocal/ltversion.m4',
+        '@THIS_SOURCE_DIR@/libcharset/m4/']
+    - args: ['autoreconf', '-fvi', '-I@THIS_SOURCE_DIR@/m4', '-I@THIS_SOURCE_DIR@/srcm4']
+
+packages:
+  - name: iconv
+    version: '1.17'
+    from_source: iconv
+    metadata:
+      summary: GNU charset conversion library
+      description: GNU charset conversion library for libc which doesn't implement it
+
+      website: 'https://www.gnu.org/software/libiconv/'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      section: libs
+    tools-required:
+      - host-gcc
+      - host-libtool
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--host=@TARGET@'
+        - '--prefix=/usr'
+        - '--with-sysroot=@SYSROOT_DIR@'
+        - '--disable-nls'
+        - '--enable-shared'
+        - '--disable-static'
+    build:
+      - args: ['make', '-j@PARALLELISM@']
+      - args: ['make', 'install']
+        environ:
+          DESTDIR: '@THIS_COLLECT_DIR@'
