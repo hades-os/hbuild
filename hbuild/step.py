@@ -24,7 +24,7 @@ class Step:
             self.workdir: str = source_properties["workdir"]
         else:
             self.workdir_type = StepWorkdirType.BUILDDIR
-            self.workdir: str = self.package.dir
+            self.workdir: str = None
 
         if "environ" in source_properties:
             self.environ: dict[str, str] = source_properties["environ"]
@@ -40,10 +40,9 @@ class Step:
         replaced_args = []
         replaced_environ: dict[str, str]= {}
 
-        base_workdir = os.path.join(build_dir, self.package.dir)
-
+        base_workdir = build_dir
         if self.workdir_type == StepWorkdirType.BUILDDIR:
-            replaced_workdir = os.path.join(build_dir, self.package.dir)
+            replaced_workdir = base_workdir
         else:
             replaced_workdir = self.workdir
 
@@ -51,7 +50,7 @@ class Step:
         source_root = sources_dir
         build_root = builds_dir
 
-        this_collect_dir = os.path.join(collect_dir, self.package.dir)
+        this_collect_dir = collect_dir
 
         sysroot_dir = system_root
         prefix_dir = system_prefix

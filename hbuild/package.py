@@ -1,3 +1,5 @@
+import docker
+
 import math
 import os
 import shutil
@@ -18,6 +20,7 @@ class Package:
 
         self.sources_dir = sources_dir
         self.builds_dir = builds_dir
+        self.packages_dir = packages_dir
 
         self.build_dir = os.path.join(builds_dir, self.name)
         self.package_dir = os.path.join(packages_dir, self.name)
@@ -28,6 +31,24 @@ class Package:
         self.source = None
         self.source_dir = None
         self.source_name = source_properties["from_source"]
+
+        self.docker_client = docker.from_env()
+        self.docker_container = self.docker_client.containers.run(
+            'hbuild:latest',
+            stdout=True,
+            stderr=True,
+            volumes={
+                self.source_dir: { 'bind': '/home/hbuild/source', 'mode': 'rw' },
+                self.build_dir: { 'bind': '/home/hbuild/build', 'mode': 'rw' },
+                self.package_dir: { 'bind': '/home/hbuild/package', 'mode': 'rw' },
+
+                self.system_prefix: { 'bind': '/home/hbuild/prefix', 'mode' : 'rw' },
+                self.system_root: { 'bind': '/home/hbuild/root' },
+
+                self.sources_dir: { 'bind': '/home/hbuild/source_root', 'mode': 'rw' },
+                self.builds_dir: { 'bind': '/home/hbuild/build_root', 'mode': 'rw' },
+            }   
+        )
 
         self.metadata = source_properties["metadata"]
 
@@ -115,7 +136,7 @@ class Package:
     
     def link_source(self, source_package: SourcePackage):
         self.source = source_package
-        self.source_dir = os.path.join(self.sources_dir, source_package.source_dir)
+        self.source_dir = source_package.source_dir
         for stage in self.stages:
             stage.link_source(source_package)
 
@@ -158,7 +179,7 @@ class Package:
             shutil.rmtree(self.build_dir)
         if os.path.exists(self.package_dir):
             shutil.rmtree(self.package_dir)
-        self.prune_system(self.system_root)
+        self.prune_system()
     
     def exec_steps(self, steps: list[Step]):
         for step in steps:
@@ -231,7 +252,7 @@ Installed-Size: {self.files_size()}
         with open(os.path.join(self.package_dir, "DEBIAN", "control"), 'w+') as control_file:
             control_file.write(control_string)
 
-        subprocess.run(["dpkg-deb", "--root-owner-group", "--build", os.path.join(packages_dir, self.dir), packages_dir])
+        subprocess.run(["dpkg-deb", "--root-owner-group", "--build",self.package_dir, self.packages_dir])
 
     def __str__(self):
         return f"Package {self.name}[{self.version}]"

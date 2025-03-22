@@ -2,19 +2,28 @@ import os
 
 from enum import Enum
 import shutil
+import subprocess
 
 from .step import Step
 from .source import SourcePackage
 from .stage import Stage
 
 class ToolPackage:
-    def __init__(self, source_data):
+    def __init__(self, source_data, sources_dir,  builds_dir, tools_dir, system_targets, system_prefix, system_root):
         source_properties = source_data
 
         self.name = source_properties["name"]
         self.version = source_properties["version"]
 
-        self.dir = self.name
+        self.sources_dir = sources_dir
+        self.builds_dir = builds_dir
+        self.tools_dir = tools_dir
+
+        self.build_dir = os.path.join(builds_dir, self.name)
+        self.tool_dir = os.path.join(tools_dir, self.name)
+        self.system_prefix = system_prefix
+        self.system_targets = system_targets
+        self.system_root = system_root
 
         self.source = None
         self.source_dir = None
@@ -97,35 +106,79 @@ class ToolPackage:
         for stage in self.stages:
             stage.link_source(source_package)
 
-    def make_dirs(self, tools_dir, builds_dir):
-        os.makedirs(os.path.join(tools_dir, self.dir), exist_ok = True)
-        os.makedirs(os.path.join(builds_dir, self.dir), exist_ok = True)
+    def make_dirs(self):
+        os.makedirs(self.tool_dir, exist_ok = True)
+        os.makedirs(self.build_dir, exist_ok = True)
 
-    def clean_dirs(self, tools_dir, builds_dir):
-        if os.path.exists(os.path.join(tools_dir, self.dir)):
-            shutil.rmtree(os.path.join(tools_dir, self.dir))
-        if os.path.exists(os.path.join(builds_dir, self.dir)):
-            shutil.rmtree(os.path.join(builds_dir, self.dir))
+    def prune_prefix(self):
+        deleted = set()
+        for dir, subdirs, files in os.walk(self.system_prefix, topdown=False):
+            still_has_subdirs = False
+            for subdir in subdirs:
+                if os.path.join(dir, subdir) not in deleted:
+                    still_has_subdirs = True
+                    break
 
-    def configure(self, sources_dir,  builds_dir, tools_dir, system_prefix, system_targets, system_dir):
-        for step in self.configure_steps:
-            step.exec(system_prefix, system_targets, sources_dir, builds_dir, tools_dir, system_dir)
+            if not any(files) and not still_has_subdirs:
+                os.rmdir(dir)
+                deleted.add(dir)
 
-    def compile(self, sources_dir,  builds_dir, tools_dir, system_prefix, system_targets, system_dir, stage: Stage = None):
+    def clean_dirs(self):
+        pkg_root_dir = self.tool_dir
+
+        for dir, _, files in os.walk(pkg_root_dir):
+            for f in files:
+                f_path = os.path.join(dir, f)
+                if os.path.lexists(f_path):
+                    f_rel_path = os.path.relpath(f_path, pkg_root_dir)
+
+                    f_pkg_path = os.path.join(pkg_root_dir, f_rel_path)
+                    f_system_path =os.path.join(self.system_prefix, f_rel_path)
+
+                    if os.path.lexists(f_pkg_path):
+                        os.unlink(f_pkg_path)
+
+                    if os.path.lexists(f_system_path):
+                        os.unlink(f_system_path)
+                        
+        if os.path.exists(self.build_dir):
+            shutil.rmtree(self.build_dir)
+        if os.path.exists(self.tool_dir):
+            shutil.rmtree(self.tool_dir)
+        self.prune_prefix()
+
+    def exec_steps(self, steps: list[Step]):
+        for step in steps:
+            step.exec(
+                self.system_prefix,
+                self.system_targets,
+                self.sources_dir,
+                self.builds_dir,
+
+                self.source_dir,
+                self.build_dir,
+
+                self.tool_dir,
+                self.system_root
+            )
+
+    def configure(self):
+        self.exec_steps(self.configure_steps)
+
+    def compile(self, stage: Stage = None):
         if stage is None:
-            for step in self.compile_steps:
-                step.exec(system_prefix, system_targets, sources_dir, builds_dir, tools_dir, system_dir)
+            self.exec_steps(self.compile_steps)
         else:
-            for step in stage.compile_steps:
-                step.exec(system_prefix, system_targets, sources_dir, builds_dir, tools_dir,system_dir)
+            self.exec_steps(stage.compile_steps)
 
-    def install(self, sources_dir,  builds_dir, tools_dir, system_prefix, system_targets, system_dir, stage: Stage = None):
+    def install(self, stage: Stage = None):
         if stage is None:
-            for step in self.install_steps:
-                step.exec(system_prefix, system_targets, sources_dir, builds_dir, tools_dir, system_dir)
+            self.exec_steps(self.install_steps)
         else:            
-            for step in stage.install_steps:
-                step.exec(system_prefix, system_targets, sources_dir, builds_dir, tools_dir, system_dir)
+            self.exec_steps(stage.install_steps)
+
+    def copy_tool(self):
+        subprocess.run(['rsync', '-aq',  f"{self.tool_dir}/", f"{self.system_prefix}"])
 
     def __str__(self):
         return f"Tool {self.name}[{self.version}]"

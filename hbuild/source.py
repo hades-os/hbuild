@@ -81,8 +81,9 @@ class DownloadProgress:
                     output_file.write(data)
                     self.progress.update(download_bar, advance = len(data))
 
+# sources_dir, system_dir, system_prefix, system_targets
 class SourcePackage:
-    def __init__(self, source_data, implicit_source = False, tool_package = None):
+    def __init__(self, source_data, sources_dir, patches_dir, system_targets, system_prefix, system_root):
         source_properties = source_data
 
         self.name = source_properties["name"]
@@ -92,12 +93,17 @@ class SourcePackage:
             self.dir = os.path.join(self.subdir, self.name)
         else:
             self.dir = self.name
-        self.source_dir = self.dir
+        
+        self.patches_dir = patches_dir
+        self.sources_dir = sources_dir
+        self.system_prefix = system_prefix
+        self.system_targets = system_targets
+        self.system_root = system_root
 
-        if implicit_source:
-            self.version = tool_package.version
-        else:
-            self.version = source_properties["version"]
+        self.patch_dir = os.path.join(patches_dir, self.name)
+        self.source_dir = os.path.join(sources_dir, self.dir)
+
+        self.version = source_properties["version"]
 
         if "url" in source_properties:
             self.source_type = SourceType.URL
@@ -145,23 +151,23 @@ class SourcePackage:
             for step in regenerate_properties:
                 self.regenerate_steps.append(Step(step, self))
 
-    def acquire(self, sources_dir):
+    def acquire(self):
         with Progress() as progress:
             if self.source_type == SourceType.URL:
-                download_progress = DownloadProgress(self.url, sources_dir, progress)
+                download_progress = DownloadProgress(self.url, self.sources_dir, progress)
                 download_progress.acquire()
 
             elif self.source_type == SourceType.GIT:
                 # repo, branch, commit, tag
                 clone_progress = CloneProgress(progress)
 
-                repo = git.Repo.clone_from(self.git, os.path.join(sources_dir, self.dir), branch = self.branch, progress = clone_progress)
+                repo = git.Repo.clone_from(self.git, self.source_dir, branch = self.branch, progress = clone_progress)
                 if self.clone_type == CloneType.COMMIT:
                     repo.git.checkout(self.commit)
                 elif self.clone_type == CloneType.TAG:
                     repo.git.checkout(self.tag)
 
-    def extract(self, sources_dir):
+    def extract(self):
         if self.source_type is not SourceType.URL:
             return
 
@@ -178,25 +184,24 @@ class SourcePackage:
         with Progress() as progress:
             parsed_url = urlparse(self.url)
             output_file = os.path.basename(parsed_url.path)
-            total_bytes = os.stat(os.path.join(sources_dir, output_file)).st_size
+            total_bytes = os.stat(os.path.join(self.sources_dir, output_file)).st_size
 
             extract_bar = progress.add_task("[red] Extracting...", totla = total_bytes)
 
             if self.format == 'tar.xz' or self.format == 'tar.gz':
-                with tarfile.open(os.path.join(sources_dir, output_file)) as tar:
-                    tar.extractall(path=os.path.join(sources_dir, self.dir), members = track_progress(tar))
+                with tarfile.open(os.path.join(self.sources_dir, output_file)) as tar:
+                    tar.extractall(path=self.source_dir, members = track_progress(tar))
 
             progress.stop_task(extract_bar)
 
-    def apply_patches(self, sources_dir,  patches_dir):
-        self.patches_dir = os.path.join(patches_dir, self.name)
-        for dir, _, files in os.walk(self.patches_dir):
+    def apply_patches(self):
+        for dir, _, files in os.walk(self.patch_dir):
             for file in files:
                 patch_path = os.path.join(dir, file)
                 print(patch_path)
 
             try:
-                res = subprocess.check_output([f"patch -f -p1 < {patch_path}"], cwd=os.path.join(sources_dir, self.dir), shell=True,
+                res = subprocess.check_output([f"patch -f -p1 < {patch_path}"], cwd=self.source_dir, shell=True,
                     stderr=subprocess.STDOUT, universal_newlines=True)
                 print(res)
             except CalledProcessError as err:
@@ -210,21 +215,35 @@ class SourcePackage:
 
         return deps
 
-    def make_dirs(self, sources_dir):
-        os.makedirs(os.path.join(sources_dir, self.dir), exist_ok = True)
+    def make_dirs(self):
+        os.makedirs(self.source_dir, exist_ok = True)
 
     def clean_dirs(self, sources_dir):
-        if os.path.exists(os.path.join(sources_dir, self.dir)):
-            shutil.rmtree(os.path.join(sources_dir, self.dir))
+        if os.path.exists(self.source_dir):
+            shutil.rmtree(self.source_dir)
 
-    def prepare(self, sources_dir, system_prefix, patches_dir):
-        self.acquire(sources_dir)
-        self.extract(sources_dir)
-        self.apply_patches(sources_dir, patches_dir)
+    def prepare(self):
+        self.acquire()
+        self.extract()
+        self.apply_patches()
 
-    def regenerate(self, sources_dir, system_dir, system_prefix, system_targets):
-        for step in self.regenerate_steps:
-            step.exec(system_prefix, system_targets, sources_dir, sources_dir, sources_dir, system_dir)
+    def exec_steps(self, steps: list[Step]):
+        for step in steps:
+            step.exec(
+                self.system_prefix,
+                self.system_targets,
+                self.sources_dir,
+                self.sources_dir,
+
+                self.source_dir,
+                self.source_dir,
+
+                self.source_dir,
+                self.system_root
+            )
+
+    def regenerate(self):
+        self.exec_steps(self.regenerate_steps)
 
     def __str__(self):
         return f"Source {self.name}[{self.version}]"
