@@ -1,3 +1,6 @@
+import podman
+from podman.domain.containers import Container as PodmanContainer
+
 import os
 import subprocess
 
@@ -7,9 +10,9 @@ from functools import partial
 from .step import Step
 
 import git
-from git import RemoteProgress
+from git import RemoteProgress, Repo
 
-import pathlib
+from pathlib import Path
 import shutil
 
 import tarfile
@@ -96,12 +99,16 @@ class SourcePackage:
         
         self.patches_dir = patches_dir
         self.sources_dir = sources_dir
+
         self.system_prefix = system_prefix
         self.system_targets = system_targets
         self.system_root = system_root
 
         self.patch_dir = os.path.join(patches_dir, self.name)
         self.source_dir = os.path.join(sources_dir, self.dir)
+
+        self.podman_client = podman.from_env()
+        self.podman_container: PodmanContainer = None
 
         self.version = source_properties["version"]
 
@@ -117,7 +124,7 @@ class SourcePackage:
                 self.branch = source_properties["branch"]
                 self.clone_type = CloneType.BRANCH
             else:
-                self.branch = "master"
+                self.branch = None
                 if "commit" in source_properties:
                     self.clone_type = CloneType.COMMIT
                     self.commit = source_properties["commit"]
@@ -161,7 +168,12 @@ class SourcePackage:
                 # repo, branch, commit, tag
                 clone_progress = CloneProgress(progress)
 
-                repo = git.Repo.clone_from(self.git, self.source_dir, branch = self.branch, progress = clone_progress)
+                repo: Repo = None
+                if self.branch is not None:
+                    repo = git.Repo.clone_from(self.git, self.source_dir, branch = self.branch, progress = clone_progress)
+                else:
+                    repo = git.Repo.clone_from(self.git, self.source_dir, progress = clone_progress)
+
                 if self.clone_type == CloneType.COMMIT:
                     repo.git.checkout(self.commit)
                 elif self.clone_type == CloneType.TAG:
@@ -172,7 +184,7 @@ class SourcePackage:
             return
 
         def strip_root(member: TarInfo):
-            return member.replace(name = pathlib.Path(*pathlib.Path(member.path).parts[self.extract_strip:]))
+            return member.replace(name = Path(*Path(member.path).parts[self.extract_strip:]))
 
         def track_progress(members: list[TarInfo]):
             for member in members:
@@ -215,10 +227,67 @@ class SourcePackage:
 
         return deps
 
+    def make_container(self):
+        self.podman_container = self.podman_client.containers.run(
+            'hbuild:latest',
+            stdout=True,
+            stderr=True,
+            userns_mode='keep-id',
+
+            volumes = {
+                self.source_dir: { 
+                    'bind': '/home/hbuild/source', 
+                    'mode': 'rw', 
+                    'extended_mode': ['U', 'z']
+                },
+                
+                self.system_prefix: { 
+                    'bind': '/home/hbuild/system_prefix',
+                    'mode': 'ro',
+                    'extended_mode':  ['z']
+                },
+
+                self.system_root: { 
+                    'bind': '/home/hbuild/system_root', 
+                    'mode': 'ro',
+                    'extended_mode': ['z']
+                },
+
+                self.sources_dir: { 
+                    'bind': '/home/hbuild/source_root', 
+                    'mode': 'ro',
+                    'extended_mode': ['z']
+                },
+                self.patches_dir: { 
+                    'bind': '/home/hbuild/patch_root', 
+                    'mode': 'ro',
+                    'extended_mode': [ 'z']
+                },
+            } |
+            (
+                 { 
+                    self.patch_dir: {
+                        'bind': '/home/hbuild/patch', 
+                        'mode': 'ro',
+                        'extended_mode': ['z']                          
+                    }
+                } if Path(self.patch_dir).exists() is True else {}
+            ),
+
+            detach=True,
+            tty=True
+        )
+
+    def tidy(self):
+        if self.podman_container is not None:
+            self.podman_container.kill(signal='SIGKILL')
+            self.podman_container.remove(force=True)
+            self.podman_container = None
+
     def make_dirs(self):
         os.makedirs(self.source_dir, exist_ok = True)
 
-    def clean_dirs(self, sources_dir):
+    def clean_dirs(self):
         if os.path.exists(self.source_dir):
             shutil.rmtree(self.source_dir)
 
@@ -230,16 +299,18 @@ class SourcePackage:
     def exec_steps(self, steps: list[Step]):
         for step in steps:
             step.exec(
-                self.system_prefix,
+                '/home/hbuild/system_prefix',
                 self.system_targets,
-                self.sources_dir,
-                self.sources_dir,
+                '/home/hbuild/source_root',
+                '/home/hbuild/source_root',
 
-                self.source_dir,
-                self.source_dir,
+                '/home/hbuild/source',
+                '/home/hbuild/source',
 
-                self.source_dir,
-                self.system_root
+                '/home/hbuild/source',
+                '/home/hbuild/system_root',
+
+                self.podman_container
             )
 
     def regenerate(self):

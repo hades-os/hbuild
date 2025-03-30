@@ -37,7 +37,7 @@ packages:
         - '--prefix=/usr'
         - '--without-bash-malloc'
         - '--disable-nls'
-        - '--with-installed-readline=@SYSROOT_DIR@/usr'
+        - '--with-installed-readline=$SYSROOT_DIR$'
     build:
       - args: ['make', '-j@PARALLELISM@']
       - args: ['make', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']

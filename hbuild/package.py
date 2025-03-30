@@ -1,4 +1,5 @@
-import docker
+import podman
+from podman.domain.containers import Container as PodmanContainer
 
 import math
 import os
@@ -12,7 +13,7 @@ from .source import SourcePackage
 from .stage import Stage
 
 class Package:
-    def __init__(self, source_data, sources_dir,  builds_dir, packages_dir, system_targets, system_prefix, system_root):
+    def __init__(self, source_data, sources_dir,  builds_dir, packages_dir, works_dir, system_targets, system_prefix, system_root):
         source_properties = source_data
 
         self.name = source_properties["name"]
@@ -21,7 +22,9 @@ class Package:
         self.sources_dir = sources_dir
         self.builds_dir = builds_dir
         self.packages_dir = packages_dir
+        self.works_dir = works_dir
 
+        self.work_dir = os.path.join(self.works_dir, self.name)
         self.build_dir = os.path.join(builds_dir, self.name)
         self.package_dir = os.path.join(packages_dir, self.name)
         self.system_prefix = system_prefix
@@ -32,23 +35,8 @@ class Package:
         self.source_dir = None
         self.source_name = source_properties["from_source"]
 
-        self.docker_client = docker.from_env()
-        self.docker_container = self.docker_client.containers.run(
-            'hbuild:latest',
-            stdout=True,
-            stderr=True,
-            volumes={
-                self.source_dir: { 'bind': '/home/hbuild/source', 'mode': 'rw' },
-                self.build_dir: { 'bind': '/home/hbuild/build', 'mode': 'rw' },
-                self.package_dir: { 'bind': '/home/hbuild/package', 'mode': 'rw' },
-
-                self.system_prefix: { 'bind': '/home/hbuild/prefix', 'mode' : 'rw' },
-                self.system_root: { 'bind': '/home/hbuild/root' },
-
-                self.sources_dir: { 'bind': '/home/hbuild/source_root', 'mode': 'rw' },
-                self.builds_dir: { 'bind': '/home/hbuild/build_root', 'mode': 'rw' },
-            }   
-        )
+        self.podman_client = podman.from_env()
+        self.podman_container: PodmanContainer = None
 
         self.metadata = source_properties["metadata"]
 
@@ -140,7 +128,73 @@ class Package:
         for stage in self.stages:
             stage.link_source(source_package)
 
+    def make_container(self):
+        self.podman_container = self.podman_client.containers.run(
+            'hbuild:latest',
+            stdout=True,
+            stderr=True,
+            userns_mode='keep-id',
+
+            overlay_volumes=[
+                {
+                    'source': self.system_root,
+                    'destination': '/home/hbuild/system_root', 
+                    'options': [
+                        f'upperdir={self.package_dir}',
+                        f'workdir={self.work_dir}'
+                    ],
+                }
+            ],
+
+            volumes={
+                self.source_dir: { 
+                    'bind': '/home/hbuild/source', 
+                    'mode': 'rw', 
+                    'extended_mode': ['U', 'z']
+                },
+
+                self.build_dir: { 
+                    'bind': '/home/hbuild/build', 
+                    'mode': 'rw', 
+                    'extended_mode': ['U', 'z']
+                },
+
+                self.package_dir: { 
+                    'bind': '/home/hbuild/package', 
+                    'mode': 'rw',
+                    'extended_mode': ['U', 'z']
+                },
+
+                self.system_prefix: { 
+                    'bind': '/home/hbuild/system_prefix', 
+                    'mode' : 'ro',
+                    'extended_mode': ['z']
+                },
+                
+                self.sources_dir: { 
+                    'bind': '/home/hbuild/source_root', 
+                    'mode': 'ro',
+                    'extended_mode': ['z']
+                },
+                self.builds_dir: { 
+                    'bind': '/home/hbuild/build_root', 
+                    'mode': 'ro',
+                    'extended_mode': [ 'z']
+                },
+            },
+
+            detach=True,
+            tty=True
+        )
+
+    def tidy(self):
+        if self.podman_container is not None:
+            self.podman_container.kill(signal='SIGKILL')
+            self.podman_container.remove(force=True)
+            self.podman_container = None
+
     def make_dirs(self):
+        os.makedirs(self.work_dir, exist_ok=True)
         os.makedirs(self.package_dir, exist_ok = True)
         os.makedirs(self.build_dir, exist_ok = True)
 
@@ -184,16 +238,18 @@ class Package:
     def exec_steps(self, steps: list[Step]):
         for step in steps:
             step.exec(
-                self.system_prefix,
+                '/home/hbuild/system_prefix',
                 self.system_targets,
-                self.sources_dir,
-                self.builds_dir,
+                '/home/hbuild/source_root',
+                '/home/hbuild/build_root',
 
-                self.source_dir,
-                self.build_dir,
+                '/home/hbuild/source',
+                '/home/hbuild/build',
 
-                self.package_dir,
-                self.system_root
+                '/home/hbuild/package',
+                '/home/hbuild/system_root',
+
+                self.podman_container
             )
 
     def configure(self):
@@ -214,7 +270,7 @@ class Package:
                     total_size += math.ceil(os.path.getsize(os.path.join(dir, file)) / 1024)
 
     def copy_system(self):
-        subprocess.run(['rsync', '-aq', '--exclude=DEBIAN',  f"{self.package_dir}/", f"{self.system_dir}"])
+        subprocess.run(['rsync', '-aq', '--exclude=DEBIAN',  f"{self.package_dir}/", f"{self.system_root}"])
 
     def format_description(self):
         return f"""Description: {self.metadata["summary"]}

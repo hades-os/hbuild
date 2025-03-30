@@ -40,36 +40,32 @@ class HBuild:
         self.load_lock()
 
         self.registry = Registry()
-
-        self.load_schemas()
-
         self.sources: list[SourcePackage] = []
         self.tools: list[ToolPackage] = []
         self.packages: list[Package] = []
 
         self.source_linkages: dict[str, list[str]] = {}
-        self.load_pkgsrc_dir()
-        self.link_sources()
 
         self.sources_dir = Path(self.config["hbuild"]["sources_dir"]).resolve().as_posix()
         self.tools_dir = Path(self.config["hbuild"]["tools_dir"]).resolve().as_posix()
         self.packages_dir = Path(self.config["hbuild"]["packages_dir"]).resolve().as_posix()
         self.builds_dir = Path(self.config["hbuild"]["builds_dir"]).resolve().as_posix()
+        self.works_dir = Path(self.config["hbuild"]["works_dir"]).resolve().as_posix()
 
         self.patches_dir = Path(self.config["hbuild"]["patches_dir"]).resolve().as_posix()
 
-        self.system_dir = Path(self.config["hbuild"]["system"]["files"]).resolve().as_posix()
+        self.system_root = Path(self.config["hbuild"]["system"]["files"]).resolve().as_posix()
         self.system_prefix = Path(self.config["hbuild"]["system"]["prefix"]).resolve().as_posix()
-
-        self.prefix_symlink = Path(self.system_dir, "prefix").resolve()
-        if self.prefix_symlink.exists() is False:
-            self.prefix_symlink.symlink_to(self.system_prefix, target_is_directory=True)
 
         self.system_targets = self.config["hbuild"]["system"]["targets"]
 
         self.dep_graph = rx.PyDiGraph(check_cycle = True)
         self.selection: list[str] = selection
         self.op: str = op
+
+        self.load_schemas()
+        self.load_pkgsrc_dir()
+        self.link_sources()
 
     def load_config(self) -> None:
         with open("config.toml") as f:
@@ -142,23 +138,54 @@ class HBuild:
                     source_validator = Draft7Validator(self.schemas["source"], registry = self.registry)
                     source_validator.validate(pkgsrc_yml["source"])
 
-                    self.sources.append(SourcePackage(pkgsrc_yml["source"]))
+                    self.sources.append(SourcePackage(
+                        pkgsrc_yml["source"],
+                        self.sources_dir,
+                        self.patches_dir,
+                        
+                        self.system_targets,
+                        self.system_prefix,
+                        self.system_root
+                    ))
 
                 if "tools" in pkgsrc_yml:
                     for tool_yml in pkgsrc_yml["tools"]:
                         tool_validator = Draft7Validator(self.schemas["tool"], registry = self.registry)
                         tool_validator.validate(tool_yml)
 
-                        tool_package = ToolPackage(tool_yml)
+                        tool_package = ToolPackage(
+                            tool_yml,
+                            self.sources_dir,
+                            self.builds_dir,
+
+                            self.tools_dir,
+                            self.works_dir,
+
+                            self.system_targets,
+                            self.system_prefix,
+                            self.system_root                        
+                        )
+                        
                         self.link_source(tool_package.name, tool_package.source_name)
                         self.tools.append(tool_package)                        
-                
                 if "packages" in pkgsrc_yml:
                     for package_yml in pkgsrc_yml["packages"]:
                         package_validator = Draft7Validator(self.schemas["package"], registry = self.registry)
                         package_validator.validate(package_yml)
 
-                        package = Package(package_yml)
+                        package = Package(
+                            package_yml,
+                            self.sources_dir,
+                            self.builds_dir,
+
+                            self.packages_dir,
+                            self.works_dir,
+
+                            self.system_targets,
+                            self.system_prefix,
+                            self.system_root
+                        )
+
                         self.link_source(package.name, package.source_name)
                         self.packages.append(package)
                     
@@ -171,12 +198,29 @@ class HBuild:
             else:
                 package = pkg_mapping
 
-            if isinstance(package, SourcePackage):
-                package.make_dirs(self.sources_dir)
-            elif isinstance(package, ToolPackage):
-                package.make_dirs(self.tools_dir, self.builds_dir)
-            elif isinstance(package, Package):
-                package.make_dirs(self.packages_dir, self.builds_dir)
+            package.make_dirs()
+
+    def make_containers(self, pkg_idxs):
+       for pkg_idx in pkg_idxs:
+            pkg_name = self.dep_graph[pkg_idx]
+            pkg_mapping = self.pkg_map[pkg_name]
+            if isinstance(pkg_mapping, tuple):
+                package, _ = pkg_mapping
+            else:
+                package = pkg_mapping
+            
+            package.make_container()
+
+    def tidy(self):
+       for pkg_idx in self.install_order:
+            pkg_name = self.dep_graph[pkg_idx]
+            pkg_mapping = self.pkg_map[pkg_name]
+            if isinstance(pkg_mapping, tuple):
+                package, _ = pkg_mapping
+            else:
+                package = pkg_mapping
+            
+            package.tidy()
 
     def clean_dirs(self, pkg_idxs):
        for pkg_idx in pkg_idxs:
@@ -188,11 +232,11 @@ class HBuild:
                 package = pkg_mapping
 
             if isinstance(package, SourcePackage):
-                package.clean_dirs(self.sources_dir)
+                package.clean_dirs()
             elif isinstance(package, ToolPackage):
-                package.clean_dirs(self.tools_dir, self.builds_dir)
+                package.clean_dirs()
             elif isinstance(package, Package):
-                package.clean_dirs(self.packages_dir, self.builds_dir, self.system_dir)
+                package.clean_dirs()
 
     @property
     def package_names(self):
@@ -441,10 +485,10 @@ class HBuild:
     def build_source(self, package: SourcePackage):
         source_name = f"source[{package.name}]"
         if self.has_installed(source_name) is False:
-            package.prepare(self.sources_dir, self.system_prefix, self.patches_dir)
+            package.prepare()
             os.sync()
 
-            package.regenerate(self.sources_dir, self.system_dir, self.system_prefix, self.system_targets)
+            package.regenerate()
             os.sync()
 
             self.mark_installed(source_name)
@@ -453,64 +497,64 @@ class HBuild:
         stage = package.find_stage(stage_name)
 
         if self.has_configured(package.name) is False:
-            package.configure(self.sources_dir, self.builds_dir, self.tools_dir,
-                self.system_prefix, self.system_targets, self.system_dir)
+            package.configure()
             os.sync()
             self.mark_configured(package.name)
 
         full_stage_name = f"{package.name}[{stage_name}]"
         if stage is not None:
             if self.has_built(full_stage_name) is False:
-                package.compile(self.sources_dir, self.builds_dir, self.tools_dir,
-                    self.system_prefix, self.system_targets, self.system_dir, stage)
+                package.compile(stage)
                 os.sync()
                 self.mark_built(full_stage_name)
 
             if self.has_installed(full_stage_name) is False:
-                package.install(self.sources_dir, self.builds_dir, self.tools_dir,
-                    self.system_prefix, self.system_targets, self.system_dir, stage)
+                package.install(stage)
                 os.sync()
+
+                package.copy_tool()
+                os.sync()
+
                 self.mark_installed(full_stage_name)
         else:
             if self.has_built(package.name) is False:
-                package.compile(self.sources_dir, self.builds_dir, self.tools_dir,
-                    self.system_prefix, self.system_targets, self.system_dir, None)
+                package.compile(None)
                 os.sync()
                 self.mark_built(package.name)
 
             if self.has_installed(package.name) is False:
-                package.install(self.sources_dir, self.builds_dir, self.tools_dir,
-                    self.system_prefix, self.system_targets, self.system_dir, None)
+                package.install(None)
                 os.sync()
+
+                package.copy_tool()
+                os.sync()
+
                 self.mark_installed(package.name)
             
     def build_system(self, package: Package, stage_name: str):
         stage = package.find_stage(stage_name)
 
         if self.has_configured(package.name) is False:
-            package.configure(self.sources_dir, self.builds_dir, self.packages_dir,
-                self.system_prefix, self.system_targets, self.system_dir)
+            package.configure()
             os.sync()
             self.mark_configured(package.name)
 
         full_stage_name = f"{package.name}[{stage_name}]"
         if stage is not None and self.has_built(full_stage_name) is False:
-            package.build(self.sources_dir, self.builds_dir, self.packages_dir,
-                self.system_prefix, self.system_targets, self.system_dir, stage)
+            package.build(stage)
             os.sync()
             self.mark_built(full_stage_name)
         elif self.has_built(package.name) is False:
-            package.build(self.sources_dir, self.builds_dir, self.packages_dir,
-                self.system_prefix, self.system_targets, self.system_dir, None)
+            package.build(None)
             os.sync()
             self.mark_built(package.name)
 
     def build_deb(self, package: Package):
         if self.has_installed(package.name) is False:
-            package.copy_system(self.packages_dir, self.system_dir)
+            package.copy_system()
             os.sync()
 
-            package.make_deb(self.packages_dir, {dep: self.pkg_map[dep].version for dep in package.pkg_deps()})
+            package.make_deb({dep: self.pkg_map[dep].version for dep in package.pkg_deps()})
             os.sync()
 
             self.mark_installed(package.name)
@@ -534,6 +578,7 @@ class HBuild:
 
     def build(self):
         self.make_dirs(self.install_order)
+        self.make_containers(self.install_order)
         for pkg_idx in self.install_order:
             self.build_package(self.dep_graph[pkg_idx])
             self.commit()
@@ -547,10 +592,12 @@ class HBuild:
                 package, _ = pkg_mapping, None
 
             if isinstance(package, Package):
-                package.copy_system(self.packages_dir, self.system_dir)
+                package.copy_system()
+            elif isinstance(package, ToolPackage):
+                package.copy_tool()
             else:
                 if package.name in self.selection:
-                    rich_print("[yellow] WARN: Source or tool package passed to hbuild.install")
+                    rich_print("[yellow] WARN: Source passed to hbuild.install")
 
     def clean(self):
         self.clean_dirs(self.install_order)
@@ -624,18 +671,23 @@ def main():
     hbuild.resolve_deps()
     hbuild.show_deps()
 
-    if args.op == "build":
-        hbuild.build()
-        hbuild.commit()
-    elif args.op == "install":
-        hbuild.install()
-    elif args.op == "clean":
-        hbuild.clean()
-        hbuild.commit()
-    elif args.op == "package":
-        hbuild.package()
-    elif args.op == "show":
-        pass
+    try:
+        if args.op == "build":
+            hbuild.build()
+            hbuild.commit()
+        elif args.op == "install":
+            hbuild.install()
+        elif args.op == "clean":
+            hbuild.clean()
+            hbuild.commit()
+        elif args.op == "package":
+            hbuild.package()
+        elif args.op == "show":
+            pass
+    except Exception as err:
+        raise err
+    finally:
+        hbuild.tidy()
 
 if __name__ == "__main__":
     main()

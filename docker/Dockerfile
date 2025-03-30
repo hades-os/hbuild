@@ -1,7 +1,7 @@
 #----------------------------------------------------------------------------------------
 # From the managarm project
 #----------------------------------------------------------------------------------------
-FROM debian:bookworm AS base
+FROM debian:sid AS base
 
 RUN apt update \
 	&& apt -y install \
@@ -54,6 +54,7 @@ RUN apt update \
 		libxfixes-dev \
 		libxml2-dev \
 		libyaml-dev \
+        meson \
 		m4 \
 		mkbootimg \
 		mtools \

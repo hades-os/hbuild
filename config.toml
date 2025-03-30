@@ -8,6 +8,7 @@ packages_dir = "packages"
 builds_dir = "builds"
 
 patches_dir = "patches"
+works_dir="works"
 
 [hbuild.system]
 files = "system_files"

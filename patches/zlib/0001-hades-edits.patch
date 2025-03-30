@@ -1,7 +1,8 @@
-diff -Naur ../zlib-v1.2.12-orig/configure ./configure
---- ../zlib-v1.2.12-orig/configure	2024-12-27 00:23:58.401605299 -0500
-+++ ./configure	2024-12-27 00:24:41.413671385 -0500
-@@ -218,7 +218,7 @@
+diff --git a/configure b/configure
+index 52ff4a0..64a8bf3 100755
+--- a/configure
++++ b/configure
+@@ -218,7 +218,7 @@ if test "$gcc" -eq 1 && ($cc -c $test.c) >> configure.log 2>&1; then
      uname=`(uname -s || echo unknown) 2>/dev/null`
    fi
    case "$uname" in

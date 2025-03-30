@@ -1,22 +1,11 @@
-diff -Naur ../openssl-v1.1.1-orig/apps/speed.c ./apps/speed.c
---- ../openssl-v1.1.1-orig/apps/speed.c	2024-12-27 00:48:13.202756544 -0500
-+++ ./apps/speed.c	2024-12-27 00:50:37.744547732 -0500
-@@ -113,6 +113,8 @@
- # define NO_FORK
- #endif
- 
-+#include <sys/select.h>
-+
- #define MAX_MISALIGNMENT 63
- #define MAX_ECDH_SIZE   256
- #define MISALIGN        64
-diff -Naur ../openssl-v1.1.1-orig/Configurations/10-main.conf ./Configurations/10-main.conf
---- ../openssl-v1.1.1-orig/Configurations/10-main.conf	2024-12-27 00:48:13.190756407 -0500
-+++ ./Configurations/10-main.conf	2024-12-27 00:54:57.484336786 -0500
-@@ -924,6 +924,30 @@
-         shared_extension => ".so.\$(SHLIB_VERSION_NUMBER)",
+diff --git a/Configurations/10-main.conf b/Configurations/10-main.conf
+index f815a09b23..a4ab0ef06d 100644
+--- a/Configurations/10-main.conf
++++ b/Configurations/10-main.conf
+@@ -925,6 +925,31 @@ my %targets = (
          ranlib           => "true",
      },
+ 
 +#### Hades
 +    "x86_64-hades" => {
 +        inherit_from => [ "BASE_unix" ],
@@ -41,13 +30,15 @@ diff -Naur ../openssl-v1.1.1-orig/Configurations/10-main.conf ./Configurations/1
 +        CC => "x86_64-hades-gcc",
 +        CXX => "x86_64-hades-g++"
 +    },
- 
++
  #### *BSD
      "BSD-generic32" => {
-diff -Naur ../openssl-v1.1.1-orig/Configure ./Configure
---- ../openssl-v1.1.1-orig/Configure	2024-12-27 00:48:13.190756407 -0500
-+++ ./Configure	2024-12-27 00:50:05.692127113 -0500
-@@ -1549,20 +1549,7 @@
+         # As for thread cflag. Idea is to maintain "collective" set of
+diff --git a/Configure b/Configure
+index 78cc15d184..2d3fb3e8cf 100755
+--- a/Configure
++++ b/Configure
+@@ -1549,20 +1549,7 @@ unless ($disabled{"crypto-mdebug-backtrace"})
  unless ($disabled{afalgeng}) {
      $config{afalgeng}="";
      if (grep { $_ eq 'afalgeng' } @{$target{enable}}) {
@@ -69,18 +60,78 @@ diff -Naur ../openssl-v1.1.1-orig/Configure ./Configure
      } else {
          disable('not-linux', 'afalgeng');
      }
-diff -Naur ../openssl-v1.1.1-orig/test/rsa_complex.c ./test/rsa_complex.c
---- ../openssl-v1.1.1-orig/test/rsa_complex.c	2024-12-27 00:48:13.698762192 -0500
-+++ ./test/rsa_complex.c	2024-12-27 00:51:28.809242080 -0500
-@@ -12,11 +12,6 @@
-  * The former defines "I" as a macro and earlier versions of the latter use
-  * for function arguments.
-  */
--#if defined(__STDC_VERSION__)
--# if __STDC_VERSION__ >= 199901L
--#  include <complex.h>
--# endif
--#endif
- #include <openssl/rsa.h>
- #include <stdlib.h>
+diff --git a/apps/speed.c b/apps/speed.c
+index 89bf18480f..7432224134 100644
+--- a/apps/speed.c
++++ b/apps/speed.c
+@@ -113,6 +113,8 @@
+ # define NO_FORK
+ #endif
  
++#include <sys/select.h>
++
+ #define MAX_MISALIGNMENT 63
+ #define MAX_ECDH_SIZE   256
+ #define MISALIGN        64
+diff --git a/crypto/conf/conf_def.c b/crypto/conf/conf_def.c
+index 31c02cc49e..4e4ca4e4ab 100644
+--- a/crypto/conf/conf_def.c
++++ b/crypto/conf/conf_def.c
+@@ -11,6 +11,7 @@
+ 
+ #include <stdio.h>
+ #include <string.h>
++#include <strings.h>
+ #include "internal/cryptlib.h"
+ #include "internal/o_dir.h"
+ #include <openssl/lhash.h>
+diff --git a/test/bntest.c b/test/bntest.c
+index 9273e86566..c4a1683305 100644
+--- a/test/bntest.c
++++ b/test/bntest.c
+@@ -10,6 +10,7 @@
+ #include <errno.h>
+ #include <stdio.h>
+ #include <string.h>
++#include <strings.h>
+ #include <ctype.h>
+ 
+ #include <openssl/bn.h>
+diff --git a/test/rsa_complex.c b/test/rsa_complex.c
+index fac581254a..1cdd823f19 100644
+--- a/test/rsa_complex.c
++++ b/test/rsa_complex.c
+@@ -14,7 +14,9 @@
+  */
+ #if defined(__STDC_VERSION__)
+ # if __STDC_VERSION__ >= 199901L
++#if !defined(__hades__)
+ #  include <complex.h>
++#endif
+ # endif
+ #endif
+ #include <openssl/rsa.h>
+diff --git a/test/ssl_test_ctx.c b/test/ssl_test_ctx.c
+index 6cdced5a16..d98baecd48 100644
+--- a/test/ssl_test_ctx.c
++++ b/test/ssl_test_ctx.c
+@@ -8,6 +8,7 @@
+  */
+ 
+ #include <string.h>
++#include <strings.h>
+ 
+ #include <openssl/e_os2.h>
+ #include <openssl/crypto.h>
+diff --git a/test/v3nametest.c b/test/v3nametest.c
+index 566472ab96..b9ddeecb97 100644
+--- a/test/v3nametest.c
++++ b/test/v3nametest.c
+@@ -8,6 +8,7 @@
+  */
+ 
+ #include <string.h>
++#include <strings.h>
+ 
+ #include <openssl/e_os2.h>
+ #include <openssl/x509.h>

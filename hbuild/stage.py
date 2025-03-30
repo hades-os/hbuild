@@ -5,7 +5,6 @@ class Stage:
         source_properties = source_data
 
         self.name = source_properties["name"]
-        self.dir = package.dir
         self.source_dir = None
 
         if "tools-required" in source_properties:

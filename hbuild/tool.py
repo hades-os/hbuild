@@ -1,3 +1,6 @@
+import podman
+from podman.domain.containers import Container as PodmanContainer
+
 import os
 
 from enum import Enum
@@ -9,7 +12,7 @@ from .source import SourcePackage
 from .stage import Stage
 
 class ToolPackage:
-    def __init__(self, source_data, sources_dir,  builds_dir, tools_dir, system_targets, system_prefix, system_root):
+    def __init__(self, source_data, sources_dir,  builds_dir, tools_dir, works_dir, system_targets, system_prefix, system_root):
         source_properties = source_data
 
         self.name = source_properties["name"]
@@ -18,7 +21,9 @@ class ToolPackage:
         self.sources_dir = sources_dir
         self.builds_dir = builds_dir
         self.tools_dir = tools_dir
+        self.works_dir = works_dir
 
+        self.work_dir = os.path.join(self.works_dir, self.name)
         self.build_dir = os.path.join(builds_dir, self.name)
         self.tool_dir = os.path.join(tools_dir, self.name)
         self.system_prefix = system_prefix
@@ -28,6 +33,9 @@ class ToolPackage:
         self.source = None
         self.source_dir = None
         self.source_name = source_properties["from_source"]
+
+        self.podman_client = podman.from_env()
+        self.podman_container: PodmanContainer = None
 
         if "tools-required" in source_properties:
             self.tools_required = source_properties["tools-required"]
@@ -106,7 +114,75 @@ class ToolPackage:
         for stage in self.stages:
             stage.link_source(source_package)
 
+    def make_container(self):
+        self.podman_container = self.podman_client.containers.run(
+            'hbuild:latest',
+            stdout=True,
+            stderr=True,
+            userns_mode='keep-id',
+
+            overlay_volumes=[
+                {
+                    'source': self.system_prefix,
+                    'destination': '/home/hbuild/system_prefix',
+                    'options': [
+                        'U',
+                        'z',
+                        f'upperdir={self.tool_dir}',
+                        f'workdir={self.work_dir}'
+                    ]
+                }
+            ],
+
+            volumes={
+                self.source_dir: { 
+                    'bind': '/home/hbuild/source', 
+                    'mode': 'rw', 
+                    'extended_mode': ['U', 'z']
+                },
+
+                self.build_dir: { 
+                    'bind': '/home/hbuild/build', 
+                    'mode': 'rw', 
+                    'extended_mode': ['U', 'z']
+                },
+
+                self.tool_dir: { 
+                    'bind': '/home/hbuild/tool', 
+                    'mode': 'rw',
+                    'extended_mode': ['U', 'z']
+                },
+
+                self.system_root: { 
+                    'bind': '/home/hbuild/system_root', 
+                    'mode': 'ro',
+                    'extended_mode': ['z']
+                },
+
+                self.sources_dir: { 
+                    'bind': '/home/hbuild/source_root', 
+                    'mode': 'ro',
+                    'extended_mode': ['z']
+                },
+                self.builds_dir: { 
+                    'bind': '/home/hbuild/build_root', 
+                    'mode': 'ro',
+                    'extended_mode': [ 'z']
+                },
+            },
+
+            detach=True,
+            tty=True
+        )
+
+    def tidy(self):
+        if self.podman_container is not None:
+            self.podman_container.kill(signal='SIGKILL')
+            self.podman_container.remove(force=True)
+            self.podman_container = None
+
     def make_dirs(self):
+        os.makedirs(self.work_dir, exist_ok=True)
         os.makedirs(self.tool_dir, exist_ok = True)
         os.makedirs(self.build_dir, exist_ok = True)
 
@@ -150,16 +226,18 @@ class ToolPackage:
     def exec_steps(self, steps: list[Step]):
         for step in steps:
             step.exec(
-                self.system_prefix,
+                '/home/hbuild/system_prefix',
                 self.system_targets,
-                self.sources_dir,
-                self.builds_dir,
+                '/home/hbuild/source_root',
+                '/home/hbuild/build_root',
 
-                self.source_dir,
-                self.build_dir,
+                '/home/hbuild/source',
+                '/home/hbuild/build',
 
-                self.tool_dir,
-                self.system_root
+                '/home/hbuild/tool',
+                '/home/hbuild/system_root',
+
+                self.podman_container
             )
 
     def configure(self):

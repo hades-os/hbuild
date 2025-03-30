@@ -1,0 +1,41 @@
+source:
+  name: 'zlib'
+  subdir: 'ports'
+  version: '1.2.12'
+
+  git: 'https://github.com/madler/zlib.git'
+  tag: 'v1.2.12'
+  tools-required:
+    - host-autoconf
+    - host-automake
+    - host-libtool
+    - host-pkg-config
+  regenerate:
+    - args: ['autoreconf', '-fvi']
+      workdir: '@THIS_SOURCE_DIR@/contrib/minizip'
+
+packages:
+  - name: zlib
+    version: '1.2.12'
+    from_source: zlib
+    metadata:
+      summary: Standard (de)compression library
+      description: This package provides some common compression and decompression functions used by various programs.
+
+      website: 'https://zlib.net'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      section: core
+    tools-required:
+      - host-gcc
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--prefix=/usr'
+        environ:
+          CHOST: '@TARGET@'
+    build:
+      - args: ['make', '-j@PARALLELISM@']
+      - args: ['make', 'install']
+        environ:
+          DESTDIR: '@THIS_COLLECT_DIR@'
+      - args: ['patchelf', '--set-soname', 'libz.so.1.2.12', '@THIS_COLLECT_DIR@/usr/lib/libz.so.1.2.12']

@@ -1,28 +1,54 @@
-diff -Naur ../libmd-v1.1.0-orig/build-aux/config.guess ./build-aux/config.guess
---- ../libmd-v1.1.0-orig/build-aux/config.guess 2024-12-28 02:21:51.794249608 -0500
-+++ ./build-aux/config.guess    2024-12-28 02:22:44.674649053 -0500
-@@ -963,6 +963,12 @@
-        GNU_REL=`echo "$UNAME_RELEASE" | sed -e 's/[-(].*//'`
-        GUESS=$UNAME_MACHINE-unknown-$GNU_SYS$GNU_REL-$LIBC
-        ;;
-+    x86_64:[Hh]ades:*:*|i?86:[Hh]ades:*:*)
-+    GUESS="$UNAME_MACHINE-pc-hades"
-+    ;;
-+    *:[Hh]ades:*:*)
-+    GUESS="$UNAME_MACHINE-unknown-hades"
-+    ;;    
-     *:Minix:*:*)
-        GUESS=$UNAME_MACHINE-unknown-minix
-        ;;
-diff -Naur ../libmd-v1.1.0-orig/build-aux/config.sub ./build-aux/config.sub
---- ../libmd-v1.1.0-orig/build-aux/config.sub   2024-12-28 02:21:51.794249608 -0500
-+++ ./build-aux/config.sub      2024-12-28 02:22:28.406525715 -0500
-@@ -1723,7 +1723,7 @@
-             | hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris* \
-             | sym* |  plan9* | psp* | sim* | xray* | os68k* | v88r* \
-             | hiux* | abug | nacl* | netware* | windows* \
--            | os9* | macos* | osx* | ios* \
-+            | os9* | macos* | osx* | ios* | hades* \
-             | mpw* | magic* | mmixware* | mon960* | lnews* \
-             | amigaos* | amigados* | msdos* | newsos* | unicos* | aof* \
-             | aos* | aros* | cloudabi* | sortix* | twizzler* \
+diff --git a/src/Makefile.am b/src/Makefile.am
+index d32f52f..ac01ca4 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -83,39 +83,39 @@ libmd.sym: libmd.map
+ 	$(AM_V_GEN) $(SED) -ne 's/^[[:space:]]\{1,\}\([A-Za-z0-9_]\{1,\}\);/\1/p' libmd.map > $@
+ 
+ md2hl.c: helper.c
+-	$(AM_V_GEN) $(SED) -e 's/hashinc/md2.h/g' -e 's/HASH/MD2/g' helper.c > $@
++	$(AM_V_GEN) $(SED) -e 's/hashinc/md2.h/g' -e 's/HASH/MD2/g' "$(srcdir)/helper.c" > $@
+ 
+ md4hl.c: helper.c
+-	$(AM_V_GEN) $(SED) -e 's/hashinc/md4.h/g' -e 's/HASH/MD4/g' helper.c > $@
++	$(AM_V_GEN) $(SED) -e 's/hashinc/md4.h/g' -e 's/HASH/MD4/g' "$(srcdir)/helper.c" > $@
+ 
+ md5hl.c: helper.c
+-	$(AM_V_GEN) $(SED) -e 's/hashinc/md5.h/g' -e 's/HASH/MD5/g' helper.c > $@
++	$(AM_V_GEN) $(SED) -e 's/hashinc/md5.h/g' -e 's/HASH/MD5/g' "$(srcdir)/helper.c" > $@
+ 
+ rmd160hl.c: helper.c
+-	$(AM_V_GEN) $(SED) -e 's/hashinc/rmd160.h/g' -e 's/HASH/RMD160/g' helper.c > $@
++	$(AM_V_GEN) $(SED) -e 's/hashinc/rmd160.h/g' -e 's/HASH/RMD160/g' "$(srcdir)/helper.c" > $@
+ 
+ sha1hl.c: helper.c
+-	$(AM_V_GEN) $(SED) -e 's/hashinc/sha1.h/g' -e 's/HASH/SHA1/g' helper.c > $@
++	$(AM_V_GEN) $(SED) -e 's/hashinc/sha1.h/g' -e 's/HASH/SHA1/g' "$(srcdir)/helper.c" > $@
+ 
+ sha224hl.c: helper.c
+ 	$(AM_V_GEN) $(SED) -e 's/hashinc/sha2.h/g' -e 's/HASH/SHA224/g' \
+-	                -e 's/SHA[0-9][0-9][0-9]_CTX/SHA2_CTX/g' helper.c > $@
++	                -e 's/SHA[0-9][0-9][0-9]_CTX/SHA2_CTX/g' "$(srcdir)/helper.c" > $@
+ 
+ sha256hl.c: helper.c
+ 	$(AM_V_GEN) $(SED) -e 's/hashinc/sha2.h/g' -e 's/HASH/SHA256/g' \
+-	                -e 's/SHA[0-9][0-9][0-9]_CTX/SHA2_CTX/g' helper.c > $@
++	                -e 's/SHA[0-9][0-9][0-9]_CTX/SHA2_CTX/g' "$(srcdir)/helper.c" > $@
+ 
+ sha384hl.c: helper.c
+ 	$(AM_V_GEN) $(SED) -e 's/hashinc/sha2.h/g' -e 's/HASH/SHA384/g' \
+-	                -e 's/SHA[0-9][0-9][0-9]_CTX/SHA2_CTX/g' helper.c > $@
++	                -e 's/SHA[0-9][0-9][0-9]_CTX/SHA2_CTX/g' "$(srcdir)/helper.c" > $@
+ 
+ sha512hl.c: helper.c
+ 	$(AM_V_GEN) $(SED) -e 's/hashinc/sha2.h/g' -e 's/HASH/SHA512/g' \
+-	                -e 's/SHA[0-9][0-9][0-9]_CTX/SHA2_CTX/g' helper.c > $@
++	                -e 's/SHA[0-9][0-9][0-9]_CTX/SHA2_CTX/g' "$(srcdir)/helper.c" > $@
+ 
+ sha512_256hl.c: helper.c
+ 	$(AM_V_GEN) $(SED) -e 's/hashinc/sha2.h/g' -e 's/HASH/SHA512_256/g' \
+-	                -e 's/SHA512_256_CTX/SHA2_CTX/g' helper.c > $@
++	                -e 's/SHA512_256_CTX/SHA2_CTX/g' "$(srcdir)/helper.c" > $@
+ 
+ runtimelibdir = $(libdir)
+ 

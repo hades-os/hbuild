@@ -1,10 +1,8 @@
+from podman.domain.containers import Container as PodmanContainer
+
 from enum import Enum
 import multiprocessing
 import os
-import subprocess
-
-from subprocess import CalledProcessError
-from rich import print as rich_print
 
 class StepWorkdirType(Enum):
     CUSTOM = 1
@@ -102,25 +100,32 @@ class Step:
 
             replaced_environ[env_var] = env_val     
 
+        base_path = "/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"
         if "PATH" in replaced_environ:
-            replaced_environ['PATH'] = f"{prefix_dir}/bin:{replaced_environ['PATH']}:{os.environ['PATH']}"
+            replaced_environ['PATH'] = f"{prefix_dir}/bin:{replaced_environ['PATH']}:{base_path}"
         else:
-            replaced_environ['PATH'] = f"{prefix_dir}/bin:{os.environ['PATH']}"
+            replaced_environ['PATH'] = f"{prefix_dir}/bin:{base_path}"
 
         replaced_environ['ACLOCAL_PATH'] = f"{prefix_dir}/share/aclocal"
 
         return replaced_args, replaced_environ, replaced_workdir
 
-    def exec(self, system_prefix, system_targets,  sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root):
+    def exec(self, system_prefix, system_targets,  sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root, container: PodmanContainer):
         args, environ, workdir = self.do_substitutions(system_prefix, system_targets,  sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root)
 
-        try:
-            res = subprocess.check_output(args, env = environ, cwd = workdir, shell = self.shell, 
-                stderr=subprocess.STDOUT, universal_newlines=True)
-            print(res)
-        except CalledProcessError as err:
-            rich_print(f"[red] Error running step for package {self.package.name}: exit {err.returncode}")
-            raise err
+        return_code: int = None
+        response: bytes = None
+
+        if self.shell is True:
+            return_code, response = container.exec_run(cmd = ['/bin/bash', '-c', *args], environment = environ, workdir = workdir,
+                user='hbuild', tty=True)
+        else:
+            return_code, response = container.exec_run(cmd = args, environment = environ, workdir = workdir,
+                user='hbuild', tty=True)
+            
+        print(response.decode())
+        if return_code > 0:
+            raise Exception(f"Error running step for package {self.package.name}: exit {return_code}")
         
     def __str__(self):
         return f"Step: {self.environ} {self.args}: {self.workdir}"
