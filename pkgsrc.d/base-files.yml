@@ -1,0 +1,35 @@
+source:
+  name: base-files
+  subdir: 'ports'
+  version: '1.0'
+
+  git: 'https://github.com/hades-os/base-files.git'
+  branch: 'main'
+
+packages:
+  - name: base-files
+    version: '1.0'
+    from_source: base-files
+    metadata:
+      summary: Hades base system miscellaneous files
+      description:  This package contains the basic filesystem hierarchy of a Hades system, and several important miscellaneous files, such as /etc/hades_version, /etc/host.conf, /etc/issue, /etc/motd, /etc/profile, and others, and the text of several common licenses in use on Hades systems. 
+      essential: true
+
+      website: 'https://github.com/hades-os/base-files'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      section: core
+    tools-required:
+      - host-gcc
+    configure:
+      - args:
+        - 'meson'
+        - 'setup'
+        - '--prefix=/'
+        - '--cross-file'
+        - '@SOURCE_ROOT@/cross_file.txt'
+        - '@THIS_SOURCE_DIR@'
+    build:
+      - args: ['ninja']
+      - args: ['ninja', 'install']
+        environ:
+          DESTDIR: '@THIS_COLLECT_DIR@'
