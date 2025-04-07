@@ -51,11 +51,6 @@
             "type": "string"
         },
 
-        "extract-path": {
-            "description": "Path to extract source to",
-            "type": "string"
-        },
-
         "extract-strip": {
             "description": "Strip number path components",
             "type": "integer"

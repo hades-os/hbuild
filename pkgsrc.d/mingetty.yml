@@ -24,5 +24,5 @@ packages:
     configure:
       - args: ['cp', '-r', '@THIS_SOURCE_DIR@/.', '@THIS_BUILD_DIR@']
     build:
-      - args: ['make', '-j@PARALLELISM@']
+      - args: ['make', 'CC=@TARGET@-gcc', '-j@PARALLELISM@']
       - args: ['make', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']

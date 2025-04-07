@@ -132,11 +132,6 @@ class SourcePackage:
                     self.clone_type = CloneType.TAG
                     self.tag = source_properties["tag"]
 
-        if "extract-path" in source_properties:
-            self.extract_path = source_properties["extract-path"]
-        else:
-            self.extract_path = self.name + '-' + self.version
-
         if "extract-strip" in source_properties:
             self.extract_strip = int(source_properties["extract-strip"])
         else:

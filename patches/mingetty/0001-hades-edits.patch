@@ -1,9 +1,12 @@
 diff --git a/Makefile b/Makefile
-index e66d843..0fa5932 100644
+index e66d843..6a7ce64 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -2,13 +2,13 @@ DESTDIR=
- CC=gcc
+@@ -1,14 +1,14 @@
+-DESTDIR=
+-CC=gcc
++DESTDIR=${DESTDIR}
++CC=${CC}
  CFLAGS=-O2 -Wall -W -pipe -D_GNU_SOURCE
  MANDIR=/usr/share/man/man8
 -SBINDIR=/sbin
@@ -20,7 +23,7 @@ index e66d843..0fa5932 100644
  mingetty:	mingetty.o
  
 diff --git a/mingetty.c b/mingetty.c
-index 084ebdf..74c9891 100644
+index 084ebdf..7dcef55 100644
 --- a/mingetty.c
 +++ b/mingetty.c
 @@ -47,6 +47,9 @@ static char *tty;
@@ -33,7 +36,53 @@ index 084ebdf..74c9891 100644
  static char hn[MAXHOSTNAMELEN + 1];
  /* process and session ID of this program */
  static pid_t pid, sid;
-@@ -138,11 +141,12 @@ static void open_tty (void)
+@@ -91,45 +94,6 @@ static void error (const char *fmt, ...)
+ 	exit (EXIT_FAILURE);
+ }
+ 
+-/* update_utmp() - update our utmp entry */
+-static void update_utmp (void)
+-{
+-	struct utmp ut;
+-	struct utmp *utp;
+-	time_t cur_time;
+-
+-	setutent ();
+-	while ((utp = getutent ()))
+-		if (utp->ut_type == INIT_PROCESS && utp->ut_pid == pid)
+-			break;
+-
+-	if (utp) {
+-		memcpy (&ut, utp, sizeof (ut));
+-	} else {
+-		/* some inits don't initialize utmp... */
+-		const char *x = tty;
+-		memset (&ut, 0, sizeof (ut));
+-		if (strncmp (x, "tty", 3) == 0)
+-			x += 3;
+-		if (strlen (x) > sizeof (ut.ut_id))
+-			x += strlen (x) - sizeof (ut.ut_id);
+-		strncpy (ut.ut_id, x, sizeof (ut.ut_id));
+-	}
+-
+-	strncpy (ut.ut_user, "LOGIN", sizeof (ut.ut_user));
+-	strncpy (ut.ut_line, tty, sizeof (ut.ut_line));
+-	time (&cur_time);
+-	ut.ut_time = cur_time;
+-	ut.ut_type = LOGIN_PROCESS;
+-	ut.ut_pid = pid;
+-	ut.ut_session = sid;
+-
+-	pututline (&ut);
+-	endutent ();
+-
+-	updwtmp (_PATH_WTMP, &ut);
+-}
+-
+ /* open_tty - set up tty as standard { input, output, error } */
+ static void open_tty (void)
+ {
+@@ -138,11 +102,12 @@ static void open_tty (void)
  	int fd;
  
  	/* Set up new standard input. */
@@ -50,7 +99,7 @@ index 084ebdf..74c9891 100644
  	}
  	/* There is always a race between this reset and the call to
  	   vhangup() that s.o. can use to get access to your tty. */
-@@ -191,8 +195,10 @@ static void open_tty (void)
+@@ -191,8 +156,10 @@ static void open_tty (void)
  
  	/* Write a reset string to the terminal. This is very linux-specific
  	   and should be checked for other systems. */
@@ -63,7 +112,7 @@ index 084ebdf..74c9891 100644
  
  	sigaction (SIGHUP, &sa_old, NULL);
  }
-@@ -216,8 +222,10 @@ static void output_special_char (unsigned char c)
+@@ -216,8 +183,10 @@ static void output_special_char (unsigned char c)
  		printf ("%s", uts.machine);
  		break;
  	case 'o':
@@ -75,7 +124,7 @@ index 084ebdf..74c9891 100644
  	case 'd':
  	case 't':
  		{
-@@ -298,10 +306,21 @@ static void do_prompt (int showlogin)
+@@ -298,10 +267,21 @@ static void do_prompt (int showlogin)
  
  static char *get_logname (void)
  {
@@ -98,7 +147,15 @@ index 084ebdf..74c9891 100644
  	tcflush (0, TCIFLUSH);		/* flush pending input */
  	for (*logname = 0; *logname == 0;) {
  		do_prompt (1);
-@@ -422,12 +441,20 @@ int main (int argc, char **argv)
+@@ -410,7 +390,6 @@ int main (int argc, char **argv)
+ 	if (strncmp (tty, "/dev/", 5) == 0) /* ignore leading "/dev/" */
+ 		tty += 5;
+ 
+-	update_utmp ();
+ 	if (delay)
+ 		sleep (delay);
+ 	open_tty ();
+@@ -422,12 +401,20 @@ int main (int argc, char **argv)
  		while ((logname = get_logname ()) == 0)
  			/* do nothing */ ;
  

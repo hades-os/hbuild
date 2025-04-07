@@ -5,7 +5,6 @@
 
   url: 'https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.xz'
   format: 'tar.xz'
-  extract-path: 'autoconf-v2.69'
   extract-strip: 1
 
 tools:

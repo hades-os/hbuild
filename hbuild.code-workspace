@@ -18,7 +18,8 @@
             "string.h": "c",
             "strings.h": "c",
             "e_os2.h": "c",
-            "complex.h": "c"
+            "complex.h": "c",
+            "unistd.h": "c"
         },
         "C_Cpp.default.compileCommands": "/home/racemus/Projects/hades/user/sources/mlibc/build/compile_commands.json"
     }

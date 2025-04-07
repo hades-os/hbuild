@@ -5,7 +5,6 @@
 
   url: 'https://ftp.gnu.org/pub/gnu/gettext/gettext-0.22.3.tar.gz'
   format: 'tar.gz'
-  extract-path: 'gettext-v0.22.3'
   extract-strip: 1
 
 tools:
