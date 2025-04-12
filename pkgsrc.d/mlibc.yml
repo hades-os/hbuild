@@ -3,7 +3,7 @@
   subdir: 'ports'
   version: '5.0'
 
-  git: 'https://github.com/rozjin/mlibc'
+  git: 'https://github.com/hades-os/mlibc'
   branch: 'release-5.0'
 
 packages:
