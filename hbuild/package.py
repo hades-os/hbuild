@@ -262,12 +262,14 @@ class Package:
             self.exec_steps(stage.build_steps)
 
     def files_size(self):
-            total_size = 0
-            for dir, subdirs, files in os.walk(self.package_dir):
-                for _ in subdirs:
-                    total_size += 1024
-                for file in files:
-                    total_size += math.ceil(os.path.getsize(os.path.join(dir, file)) / 1024)
+        total_size = 0
+        for dir, subdirs, files in os.walk(self.package_dir):
+            for _ in subdirs:
+                total_size += 1024
+            for file in files:
+                total_size += math.ceil(os.path.getsize(os.path.join(dir, file)) / 1024)
+        
+        return total_size
 
     def copy_system(self):
         subprocess.run(['rsync', '-aq', '--exclude=DEBIAN',  f"{self.package_dir}/", f"{self.system_root}"])
