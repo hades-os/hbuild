@@ -18,7 +18,7 @@ pillow = "^11.0.0"
 jsonpickle = "^4.0.1"
 argparse-dataclass = "^2.0.0"
 dearpygui = "^2.0.0"
-docker = "^7.1.0"
+podman = "^5.4.0.1"
 
 [build-system]
 requires = ["poetry-core"]
