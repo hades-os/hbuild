@@ -7,4 +7,3 @@ for dir in ${dirs[@]}; do
 done
 
 cp "build_files/cross_file.txt" "sources/cross_file.txt"
-echo "{}" >> "hbuild.lock"
