@@ -479,8 +479,8 @@ class HBuild:
 
         rich_print(self.print_tree)
 
-        visual = graphviz_draw(self.dep_graph, node_attr_fn=lambda node: { "label": str(node) })
-        visual.show()
+        # visual = graphviz_draw(self.dep_graph, node_attr_fn=lambda node: { "label": str(node) })
+        # visual.show()
 
     def build_source(self, package: SourcePackage):
         source_name = f"source[{package.name}]"
