@@ -6,6 +6,7 @@
 /packages/
 /system_files/
 /system_prefix/
+/works/
 
 **__pycache__**
 hbuild.lock

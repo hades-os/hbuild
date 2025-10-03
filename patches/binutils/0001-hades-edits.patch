@@ -1,5 +1,5 @@
 diff --git a/bfd/config.bfd b/bfd/config.bfd
-index 6553aac1e99..f535136bfd5 100644
+index 4e5a838fe4e..2c6a35d918b 100644
 --- a/bfd/config.bfd
 +++ b/bfd/config.bfd
 @@ -705,6 +705,11 @@ case "${targ}" in
@@ -15,20 +15,19 @@ index 6553aac1e99..f535136bfd5 100644
      targ_defvec=x86_64_elf64_vec
      targ_selvecs="i386_elf32_vec iamcu_elf32_vec i386_coff_vec i386_pei_vec x86_64_pe_vec x86_64_pei_vec"
 diff --git a/config.sub b/config.sub
-index 2c6a07ab3c3..7cd169f502d 100755
+index 4aaae46f6f7..567bac5c612 100755
 --- a/config.sub
 +++ b/config.sub
-@@ -1768,7 +1768,7 @@ case $os in
- 	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
- 	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
- 	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* | zephyr* \
--	     | fiwix* | mlibc* | cos* | mbr* | ironclad* )
-+	     | fiwix* | mlibc* | cos* | mbr* | ironclad* | hades* )
- 		;;
- 	# This one is extra strict with allowed versions
- 	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
+@@ -2023,6 +2023,7 @@ case $os in
+ 	| iris* \
+ 	| irix* \
+ 	| ironclad* \
++    | hades* \
+ 	| isc* \
+ 	| its* \
+ 	| l4re* \
 diff --git a/gas/configure.tgt b/gas/configure.tgt
-index d58f21873a3..4589f2e9d96 100644
+index 7c81bffa16b..6f0267cd884 100644
 --- a/gas/configure.tgt
 +++ b/gas/configure.tgt
 @@ -231,6 +231,7 @@ case ${generic_target} in
@@ -40,15 +39,14 @@ index d58f21873a3..4589f2e9d96 100644
    i386-*-bsd*)				fmt=aout em=386bsd ;;
    i386-*-netbsd*-gnu* | \
 diff --git a/ld/configure.tgt b/ld/configure.tgt
-index f937f78b876..d54ff53987a 100644
+index ea01ccf9a1b..ee68f6533b1 100644
 --- a/ld/configure.tgt
 +++ b/ld/configure.tgt
-@@ -1009,6 +1009,10 @@ x86_64-*-cloudabi*)	targ_emul=elf_x86_64_cloudabi
+@@ -1005,6 +1005,9 @@ x86_64-*-cloudabi*)	targ_emul=elf_x86_64_cloudabi
  x86_64-*-haiku*)	targ_emul=elf_x86_64_haiku
  			targ_extra_emuls="elf_x86_64 elf_i386_haiku"
  			;;
-+x86_64-*-hades*)
-+			targ_emul=elf_x86_64
++x86_64-*-hades*)	targ_emul=elf_x86_64
 +			targ_extra_emuls="elf_i386"
 +			;;
  x86_64-*-linux-gnux32)	targ_emul=elf32_x86_64
