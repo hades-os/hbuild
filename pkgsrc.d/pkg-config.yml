@@ -22,9 +22,8 @@ tools:
       - args: 
         - '@THIS_SOURCE_DIR@/configure'
         - '--prefix=@PREFIX@'
-        - '--host=@TARGET@'
         - '--with-internal-glib'
     compile:
       - args: ['make', '-j@PARALLELISM@']
     install:
-      - args: ['make', 'install-strip']
+      - args: ['make', 'install']
