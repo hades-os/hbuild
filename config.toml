@@ -15,4 +15,4 @@ files = "system_files"
 prefix = "system_prefix"
 
 [hbuild.system.targets]
-x86_64 = "x86_64-hades"
+x86_64 = "x86_64-hera-linux-gnu"

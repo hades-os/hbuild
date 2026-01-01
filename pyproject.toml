@@ -19,6 +19,11 @@ jsonpickle = "^4.0.1"
 argparse-dataclass = "^2.0.0"
 dearpygui = "^2.0.0"
 podman = "^5.4.0.1"
+fastapi = {extras = ["standard"], version = "^0.119.1"}
+pydantic = "^2.12.3"
+bubus = "^1.5.6"
+classy-fastapi = "^0.7.0"
+python-multipart = "^0.0.20"
 
 [build-system]
 requires = ["poetry-core"]

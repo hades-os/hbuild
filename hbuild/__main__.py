@@ -2,12 +2,20 @@ import json
 import os
 import re
 import toml
+import threading
 import yaml
+
+from bubus import EventBus, BaseEvent
+
+from classy_fastapi import Routable, get, delete, post
 
 from dataclasses import field
 from enum import Enum
 from argparse_dataclass import dataclass as argclass
 from argparse_dataclass import ArgumentParser
+
+from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from pathlib import Path
 
@@ -26,14 +34,15 @@ from jsonschema import Draft7Validator
 from .source import SourcePackage
 from .tool import ToolPackage
 from .package import Package
+from .stage import Stage
 
-class HBuildState(int, Enum):
-    CONFIGURED = 1
-    BUILT = 2
-    INSTALLED = 3
+from .models import HBuildState, BuildOrder, ResolveOrder
 
-class HBuild:
-    def __init__(self, selection, op):
+class HBuild(Routable):
+    def __init__(self):
+        super().__init__()
+        self.bus = EventBus()
+
         self.lock: dict[str: HBuildState] = {}
 
         self.load_config()
@@ -45,6 +54,8 @@ class HBuild:
         self.packages: list[Package] = []
 
         self.source_linkages: dict[str, list[str]] = {}
+        self.commit_lock = threading.Lock()
+        self.build_locks: dict[str, threading.Lock]  = {}
 
         self.sources_dir = Path(self.config["hbuild"]["sources_dir"]).resolve().as_posix()
         self.tools_dir = Path(self.config["hbuild"]["tools_dir"]).resolve().as_posix()
@@ -60,12 +71,15 @@ class HBuild:
         self.system_targets = self.config["hbuild"]["system"]["targets"]
 
         self.dep_graph = rx.PyDiGraph(check_cycle = True)
-        self.selection: list[str] = selection
-        self.op: str = op
 
         self.load_schemas()
         self.load_pkgsrc_dir()
         self.link_sources()
+
+        self.build_dep_tree()
+        self.build_pkg_map()
+
+        self.create_locks()
 
     def load_config(self) -> None:
         with open("config.toml") as f:
@@ -189,30 +203,14 @@ class HBuild:
                         self.link_source(package.name, package.source_name)
                         self.packages.append(package)
                     
-    def make_dirs(self, pkg_idxs):
-       for pkg_idx in pkg_idxs:
-            pkg_name = self.dep_graph[pkg_idx]
-            pkg_mapping = self.pkg_map[pkg_name]
-            if isinstance(pkg_mapping, tuple):
-                package, _ = pkg_mapping
-            else:
-                package = pkg_mapping
+    def make_dir(self, package: Package | ToolPackage | SourcePackage):
+        package.make_dirs()
 
-            package.make_dirs()
+    def make_container(self, package: Package | ToolPackage | SourcePackage):
+        package.make_container()
 
-    def make_containers(self, pkg_idxs):
-       for pkg_idx in pkg_idxs:
-            pkg_name = self.dep_graph[pkg_idx]
-            pkg_mapping = self.pkg_map[pkg_name]
-            if isinstance(pkg_mapping, tuple):
-                package, _ = pkg_mapping
-            else:
-                package = pkg_mapping
-            
-            package.make_container()
-
-    def tidy(self):
-       for pkg_idx in self.install_order:
+    def tidy(self, install_order):
+       for pkg_idx in install_order:
             pkg_name = self.dep_graph[pkg_idx]
             pkg_mapping = self.pkg_map[pkg_name]
             if isinstance(pkg_mapping, tuple):
@@ -222,21 +220,8 @@ class HBuild:
             
             package.tidy()
 
-    def clean_dirs(self, pkg_idxs):
-       for pkg_idx in pkg_idxs:
-            pkg_name = self.dep_graph[pkg_idx]
-            pkg_mapping = self.pkg_map[pkg_name]
-            if isinstance(pkg_mapping, tuple):
-                package, _ = pkg_mapping
-            else:
-                package = pkg_mapping
-
-            if isinstance(package, SourcePackage):
-                package.clean_dirs()
-            elif isinstance(package, ToolPackage):
-                package.clean_dirs()
-            elif isinstance(package, Package):
-                package.clean_dirs()
+    def clean_dir(self, package: Package | ToolPackage | SourcePackage):
+        package.clean_dirs()
 
     @property
     def package_names(self):
@@ -417,12 +402,21 @@ class HBuild:
                 else:
                     raise Exception(f"Unable to resolve package {node}")
                 
-    def resolve_deps(self):
-        self.build_dep_tree()
-        if len(self.selection) > 0:
+    
+    def create_locks(self):
+        for _, pkg_mapping in self.pkg_map.items():
+            if isinstance(pkg_mapping, tuple):
+                package, _ = pkg_mapping
+            else:
+                package = pkg_mapping             
+            
+            self.build_locks[package.name] = threading.Lock()
+    def resolve_deps(self, selection, op):
+        dep_graph = self.dep_graph
+        if len(selection) > 0:
             roots = []
             descendants = []
-            for package in self.selection:
+            for package in selection:
                 roots.append(self.pkg_idxs[package])
                 root_descendants = rx.descendants(self.dep_graph, self.pkg_idxs[package])
 
@@ -430,57 +424,55 @@ class HBuild:
                     if descendant not in descendants:
                         descendants.append(descendant)
 
-            self.dep_graph = self.dep_graph.subgraph([*descendants, *roots])
+            dep_graph = dep_graph.subgraph([*descendants, *roots])
 
-        self.dep_graph, _ = rx.transitive_reduction(self.dep_graph)
-        self.build_pkg_map()
+        dep_graph, _ = rx.transitive_reduction(dep_graph)
+        install_order = rx.topological_sort(dep_graph)
+        install_order = list(reversed(install_order))
 
-        self.install_order = rx.topological_sort(self.dep_graph)
-        self.install_order = list(reversed(self.install_order))
+        if op != "clean" or len(selection) > 0:
+            with self.commit_lock:
+                install_order = [pkg_idx for pkg_idx in install_order if dep_graph[pkg_idx] not in self.lock or self.lock[dep_graph[pkg_idx]] != HBuildState.INSTALLED or dep_graph[pkg_idx] in selection]
 
-        if self.op != "clean" or len(self.selection) > 0:
-            self.install_order = [pkg_idx for pkg_idx in self.install_order if self.dep_graph[pkg_idx] not in self.lock or self.lock[self.dep_graph[pkg_idx]] != HBuildState.INSTALLED or self.dep_graph[pkg_idx] in self.selection]
+        return install_order, dep_graph
 
-    def format_node(self, node: str):
-        if self.op == "clean" and len(self.selection) == 0:
+    def format_node(self, node: str, selection, op):
+        if op == "clean" and len(selection) == 0:
             return f"[bright_green]{escape(node)}"
         else:
-            if node not in self.lock or self.lock[node] != HBuildState.INSTALLED or node in self.selection:
+            if node not in self.lock or self.lock[node] != HBuildState.INSTALLED or node in selection:
                 return f"[bright_green]{escape(node)}"
             else:
                 return f"[gray]{escape(node)}"
 
-    def print_node(self, node: str, node_idx: int, node_print_tree: Tree):
+    def print_node(self, node: str, node_idx: int, node_print_tree: Tree, selection, op, dep_graph):
         if node_print_tree is None:
-            node_print_tree = self.print_tree.add(self.format_node(node))
+            node_print_tree = self.print_tree.add(self.format_node(node, selection, op))
 
-        for dep_idx in self.dep_graph.neighbors(node_idx):
-            dep_node = self.dep_graph[dep_idx]
-            dep_tree = node_print_tree.add(self.format_node(dep_node))
+        for dep_idx in dep_graph.neighbors(node_idx):
+            dep_node = dep_graph[dep_idx]
+            dep_tree = node_print_tree.add(self.format_node(dep_node, selection, op))
 
-            self.print_node(dep_node, dep_idx, dep_tree)
+            self.print_node(dep_node, dep_idx, dep_tree, selection, op, dep_graph)
 
-    def show_deps(self):
+    def show_deps(self, selection, op, dep_graph):
         self.print_tree = Tree(
             "Installing Tree",
             guide_style="bold bright_blue"
         )
 
-        node_indices = self.dep_graph.node_indices()
+        node_indices = dep_graph.node_indices()
         roots = {}
 
         for node_idx in node_indices:
-            node = self.dep_graph[node_idx]
-            if self.dep_graph.in_degree(node_idx) == 0:
+            node = dep_graph[node_idx]
+            if dep_graph.in_degree(node_idx) == 0:
                 roots[node] = node_idx
 
         for root_node, root_node_idx in roots.items():
-            self.print_node(root_node, root_node_idx, None)
+            self.print_node(root_node, root_node_idx, None, selection, op, dep_graph)
 
         rich_print(self.print_tree)
-
-        # visual = graphviz_draw(self.dep_graph, node_attr_fn=lambda node: { "label": str(node) })
-        # visual.show()
 
     def build_source(self, package: SourcePackage):
         source_name = f"source[{package.name}]"
@@ -559,15 +551,9 @@ class HBuild:
 
             self.mark_installed(package.name)
 
-    def build_package(self, name):
-        print(f"Installing {name}")
-
-        pkg_mapping = self.pkg_map[name]
-        if isinstance(pkg_mapping, tuple):
-            package, stage_name = pkg_mapping
-        else:
-            package, stage_name = pkg_mapping, None
-
+    def build_package(self, package: Package | ToolPackage | SourcePackage, stage_name: str):
+        print(f"Installing {package.name}")
+        
         if isinstance(package, SourcePackage):
             self.build_source(package)
         elif isinstance(package, ToolPackage):
@@ -576,118 +562,263 @@ class HBuild:
             self.build_system(package, stage_name)
             self.build_deb(package)
 
-    def build(self):
-        self.make_dirs(self.install_order)
-        self.make_containers(self.install_order)
-        for pkg_idx in self.install_order:
-            self.build_package(self.dep_graph[pkg_idx])
-            self.commit()
-    
-    def install(self):
-        for pkg_idx in self.install_order:
+    def build(self, install_order):
+        for pkg_idx in install_order:
             pkg_mapping = self.pkg_map[self.dep_graph[pkg_idx]]
             if isinstance(pkg_mapping, tuple):
-                package = pkg_mapping
+                package, stage_name = pkg_mapping
             else:
-                package, _ = pkg_mapping, None
+                package, stage_name = pkg_mapping, None
 
-            if isinstance(package, Package):
-                package.copy_system()
-            elif isinstance(package, ToolPackage):
-                package.copy_tool()
+            with self.build_locks[package.name]:
+                self.make_dir(package)
+                self.make_container(package)            
+                self.build_package(package, stage_name)
+    
+    def install(self, install_order):
+        for pkg_idx in install_order:
+            pkg_mapping = self.pkg_map[self.dep_graph[pkg_idx]]
+            if isinstance(pkg_mapping, tuple):
+                package, _ = pkg_mapping
             else:
-                if package.name in self.selection:
+                package = pkg_mapping
+
+            with self.build_locks[package.name]:
+                if isinstance(package, Package):
+                    package.copy_system()
+                elif isinstance(package, ToolPackage):
+                    package.copy_tool()
+                else:
                     rich_print("[yellow] WARN: Source passed to hbuild.install")
 
-    def clean(self):
-        self.clean_dirs(self.install_order)
-        for pkg_idx in self.install_order:
-            self.unmark_configured(self.dep_graph[pkg_idx])
-
-    def package(self):
-        for pkg_idx in self.install_order:
+    def clean(self, install_order):
+        for pkg_idx in install_order:
             pkg_mapping = self.pkg_map[self.dep_graph[pkg_idx]]
             if isinstance(pkg_mapping, tuple):
-                package = pkg_mapping
+                package, _ = pkg_mapping
             else:
-                package, _ = pkg_mapping, None
+                package = pkg_mapping
+
+            with self.build_locks[package.name]:
+                self.clean_dir(package)
+                self.unmark_configured(self.dep_graph[pkg_idx])
+
+    def package(self, install_order):
+        for pkg_idx in install_order:
+            pkg_mapping = self.pkg_map[self.dep_graph[pkg_idx]]
+            if isinstance(pkg_mapping, tuple):
+                package, _ = pkg_mapping
+            else:
+                package = pkg_mapping
 
             if isinstance(package, Package):
-                self.build_deb(package)
+                with self.build_locks[package.name]:
+                    self.build_deb(package)
             else:
                 rich_print("[yellow] WARN: Source or tool package passed to hbuild.package")
 
     def has_configured(self, pkg_name):
-        if pkg_name in self.lock and self.lock[pkg_name] == HBuildState.CONFIGURED:
-            return True
-        return False
+        with self.commit_lock:
+            if pkg_name in self.lock and self.lock[pkg_name] == HBuildState.CONFIGURED:
+                return True
+            return False
 
     def has_built(self, pkg_name):
-        if pkg_name in self.lock and self.lock[pkg_name] == HBuildState.BUILT:
-            return True
-        return False
+        with self.commit_lock:
+            if pkg_name in self.lock and self.lock[pkg_name] == HBuildState.BUILT:
+                return True
+            return False
 
     def has_installed(self, pkg_name):
-        if pkg_name in self.lock and self.lock[pkg_name] == HBuildState.INSTALLED:
-            return True
-        return False
+        with self.commit_lock:            
+            if pkg_name in self.lock and self.lock[pkg_name] == HBuildState.INSTALLED:
+                return True
+            return False
 
     def mark_configured(self, pkg_name):
-        self.lock[pkg_name] = HBuildState.CONFIGURED
-
-    def unmark_configured(self, pkg_name):
-        if pkg_name in self.lock:
-            del self.lock[pkg_name]
-
-    def mark_built(self, pkg_name):
-        self.lock[pkg_name] = HBuildState.BUILT
-
-    def unmark_built(self, pkg_name):
-        if pkg_name in self.lock:
+        with self.commit_lock:
             self.lock[pkg_name] = HBuildState.CONFIGURED
 
+    def unmark_configured(self, pkg_name):
+        with self.commit_lock:
+            if pkg_name in self.lock:
+                del self.lock[pkg_name]
+
+    def mark_built(self, pkg_name):
+        with self.commit_lock:
+            self.lock[pkg_name] = HBuildState.BUILT
+
+    def unmark_built(self, pkg_name):
+        with self.commit_lock:        
+            if pkg_name in self.lock:
+                self.lock[pkg_name] = HBuildState.CONFIGURED
+
     def mark_installed(self, pkg_name):
-        self.lock[pkg_name] = HBuildState.INSTALLED
+        with self.commit_lock:
+            self.lock[pkg_name] = HBuildState.INSTALLED
 
     def unmark_installed(self, pkg_name):
-        if pkg_name in self.lock:
-            self.lock[pkg_name] = HBuildState.BUILT
+        with self.commit_lock:
+            if pkg_name in self.lock:
+                self.lock[pkg_name] = HBuildState.BUILT
 
     def commit(self):
         with open("hbuild.lock", "w+") as f:
             json.dump(self.lock, f)
 
+    def process(self, op, install_order, dep_graph):
+        # node indices are not preserved, so we have to map them back
+        true_install_order = [self.pkg_idxs[dep_graph[idx]] for idx in install_order]
+        try:
+            if op == "build":
+                hbuild.build(true_install_order)
+                hbuild.commit()
+            elif op == "install":
+                hbuild.install(true_install_order)
+            elif op == "clean":
+                hbuild.clean(true_install_order)
+                hbuild.commit()
+            elif op == "package":
+                hbuild.package(true_install_order)
+        except Exception as err:
+            raise err
+        finally:
+            hbuild.tidy(install_order)        
+
+    @get('/')
+    def get_root(self) -> str:
+        return "hello world"
+    
+    @get('/api/status')
+    def get_list(self) -> list[str]:
+        pkg_status_list = []
+        with self.commit_lock:
+            for pkg_name, pkg in self.pkg_map.items():
+                if isinstance(pkg, ToolPackage):
+                    pkg_status_list.append({
+                        "name": pkg_name,
+                        "type": "tool",
+                        "status": self.lock[pkg_name] if pkg_name in self.lock else "unbuilt",
+                        "stages": [
+                            {
+                                "stage_name": stage.name,
+                                "name": f"{pkg_name}[{stage.name}]",
+                                "package": pkg_name,
+                                "status": self.lock[f"{pkg_name}[{stage.name}]"] if f"{pkg_name}[{stage.name}]" in self.lock else "unbuilt"
+                            }
+                            for stage in pkg.stages
+                        ]
+                    })
+                elif isinstance(pkg, Package) or isinstance(pkg, SourcePackage):
+                    pkg_status_list.append({
+                        "name": pkg_name,
+                        "type": "package" if isinstance(pkg, Package) else "source",
+                        "status": self.lock[pkg_name] if pkg_name in self.lock else "unbuilt"
+                    })
+
+        return {
+            "packages": pkg_status_list
+        }
+    
+    @post('/api/resolve')
+    def post_resolve(self, req: ResolveOrder):
+        to_resolve = []
+        for package in req.packages:
+            if package in to_resolve:
+                raise HTTPException(status_code=400, detail=f"Duplicate package {package} in build order")
+            if package not in self.pkg_map.keys():
+                raise HTTPException(status_code=404, detail=f"Package {package} does not exist or is not available.")
+            to_resolve.append(package)
+                
+        _, dep_graph = self.resolve_deps(to_resolve, "build")
+
+        edge_data = []
+        for source, target in dep_graph.edge_list():
+            edge_data.append({
+                "package": dep_graph[source],
+                "dependency": dep_graph[target],
+            })
+
+        return {
+            "packages": edge_data
+        }
+        
+    @post('/api/build', status_code=202)
+    def post_build(self, req: BuildOrder, background_tasks: BackgroundTasks) -> None:
+        to_build = []
+        for package in req.packages:
+            if package.name in to_build:
+                raise HTTPException(status_code=400, detail=f"Duplicate package {package.name} in build order")
+            if package.name not in self.pkg_map.keys():
+                raise HTTPException(status_code=404, detail=f"Package {package.name} does not exist or is not available.")
+            if package.stage:
+                to_build.append(f"{package.name}[{package.stage}]")
+            else:
+                to_build.append(package.name)
+        
+        install_order, dep_graph = self.resolve_deps(to_build, req.build_to)
+
+        def execute_build():
+            self.show_deps(to_build, req.build_to, dep_graph)
+            self.process(req.build_to, install_order, dep_graph)
+        background_tasks.add_task(execute_build)
+
+        return {
+            "message": "Building packages"
+        }
+
+
 @argclass
 class HBuildArgs:
-    op: str = field(metadata=dict(args=["op"], choices=["build","install", "clean", "package", "show"]))
+    op: str = field(metadata=dict(args=["op"], choices=["build","install", "clean", "package", "show", "server"]))
     selection: list[str] = field(default_factory=lambda: [], metadata=dict(nargs='*', args=["selection"]))
 
 def main():
     parser = ArgumentParser(HBuildArgs)
     args = parser.parse_args()
 
-    hbuild = HBuild(args.selection, args.op)
+    hbuild = HBuild()
+    install_order, dep_graph = hbuild.resolve_deps(args.selection, args.op)
+    hbuild.show_deps(args.selection, args.op, dep_graph)
 
-    hbuild.resolve_deps()
-    hbuild.show_deps()
-
+    true_install_order = [hbuild.pkg_idxs[dep_graph[idx]] for idx in install_order]
     try:
         if args.op == "build":
-            hbuild.build()
+            hbuild.build(true_install_order)
             hbuild.commit()
         elif args.op == "install":
-            hbuild.install()
+            hbuild.install(true_install_order)
         elif args.op == "clean":
-            hbuild.clean()
+            hbuild.clean(true_install_order)
             hbuild.commit()
         elif args.op == "package":
-            hbuild.package()
+            hbuild.package(true_install_order)
         elif args.op == "show":
+            pass
+        elif args.op == "server":
             pass
     except Exception as err:
         raise err
     finally:
-        hbuild.tidy()
+        hbuild.tidy(true_install_order)   
+
+
+hbuild = HBuild()
+
+origins = [
+    'http://localhost:3000',
+    'http://localhost'
+]
+
+app = FastAPI()
+app.include_router(hbuild.router)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins = origins,
+    allow_credentials = True,
+    allow_methods = ['*'],
+    allow_headers = ['*']
+)
 
 if __name__ == "__main__":
     main()

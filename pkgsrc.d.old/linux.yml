@@ -1,15 +1,15 @@
 ﻿source:
   name: 'linux'
   subdir: 'ports'
-  version: '6.17.3'
+  version: '6.1.8'
 
-  url: 'https://www.kernel.org/pub/linux/kernel/v6.x/linux-6.17.3.tar.xz'
+  url: 'https://www.kernel.org/pub/linux/kernel/v6.x/linux-6.1.8.tar.xz'
   format: 'tar.xz'
   extract-strip: 1
 
 packages:
   - name: linux-headers
-    version: '6.17.3'
+    version: '6.1.8'
     from_source: linux
     no-deps: true
     metadata:
@@ -26,4 +26,5 @@ packages:
       - args: ['find', 'usr/include', '-type', 'f', '!', '-name', '*.h', '-delete']
       - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/usr']
 
+      - args: ['rm', 'usr/include/linux/libc-compat.h']
       - args: ['cp', '-r', 'usr/include', '@THIS_COLLECT_DIR@/usr']

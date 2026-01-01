@@ -1,0 +1,113 @@
+﻿source:
+  name: gcc
+  subdir: 'ports'
+  version: '15.2.0'
+
+  git: 'https://github.com/gcc-mirror/gcc'
+  tag: 'releases/gcc-15.2.0'
+  tools-required:
+    - host-autoconf
+    - host-automake
+  regenerate:
+    - args: ['./contrib/download_prerequisites']
+      workdir: '@THIS_SOURCE_DIR@'
+    - args: ['autoconf']
+      workdir: '@THIS_SOURCE_DIR@/gcc'
+    - args: ['autoconf']
+      workdir: '@THIS_SOURCE_DIR@/libstdc++-v3'
+
+tools:
+  - name: system-gcc
+    version: '15.2.0'
+    from_source: gcc
+    tools-required:
+      - system-binutils
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--target=x86_64-elf'
+        - '--prefix=@PREFIX@'
+        - '--without-headers'
+        - '--enable-initfini-array'
+        - '--enable-languages=c,c++'
+        - '--disable-shared'
+        - '--disable-nls'
+        - '--disable-hosted-libstdcxx'
+        environ:
+          CFLAGS: '-O2 -pipe'
+          CXXFLAGS: '-O2 -pipe'        
+    stages:
+      - name: compiler
+        compile:
+          - args: ['make', '-j@PARALLELISM@', 'all-gcc']
+        install:
+          - args: ['make', 'install-gcc']
+      - name: libgcc
+        tools-required:
+          - tool: system-gcc
+            stage-dependencies: [compiler]
+        compile:
+          - args:
+            - |
+                make all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=kernel -mno-red-zone' || true
+            shell: True
+          - args: ['sed', '-i', "s/PICFLAG/DISABLED_PICFLAG/g", 'x86_64-elf/libgcc/Makefile']
+          - args: ['sed', '-i', "s/PICFLAG/DISABLED_PICFLAG/g", 'x86_64-elf/no-red-zone/libgcc/Makefile']
+          - args:
+            - |
+                make all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=kernel -mno-red-zone'
+            shell: True
+        install:
+          - args: ['make', 'install-target-libgcc']
+      - name: libstdc++
+        tools-required:
+          - tool: system-gcc
+            stage-dependencies: [libgcc]
+        compile:
+          - args: ['make', '-j@PARALLELISM@', 'all-target-libstdc++-v3']
+        install:
+          - args: ['make', 'install-target-libstdc++-v3']          
+  - name: host-gcc
+    version: '15.2.0'
+    from_source: gcc
+    tools-required:
+      - host-binutils
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--prefix=@PREFIX@'
+        - '--target=@TARGET@'
+        - '--with-sysroot=@SYSROOT_DIR@'
+        - '--enable-shared'
+        - '--enable-languages=c,c++'
+        - '--enable-initfini-array'
+        - '--disable-nls'
+        environ:
+          CFLAGS: '-O2 -pipe'
+          CXXFLAGS: '-O2 -pipe'          
+    stages:
+      - name: compiler
+        pkgs-required:
+          - mlibc-headers
+        compile:
+          - args: ['make', '-j@PARALLELISM@', 'all-gcc']
+        install:
+          - args: ['make', 'install-gcc']
+      - name: libgcc
+        tools-required:
+          - tool: host-gcc
+            stage-dependencies: [compiler]
+        pkgs-required:
+          - mlibc
+        compile:
+          - args: ['make', '-j@PARALLELISM@', 'all-target-libgcc']
+        install:
+          - args: ['make', 'install-target-libgcc']
+      - name: libstdc++
+        tools-required:
+          - tool: host-gcc
+            stage-dependencies: [libgcc]
+        compile:
+          - args: ['make', '-j@PARALLELISM@', 'all-target-libstdc++-v3']
+        install:
+          - args: ['make', 'install-target-libstdc++-v3']

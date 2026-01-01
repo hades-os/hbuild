@@ -15,99 +15,86 @@
       workdir: '@THIS_SOURCE_DIR@/gcc'
     - args: ['autoconf']
       workdir: '@THIS_SOURCE_DIR@/libstdc++-v3'
+    - args:
+      - |
+           sed -e '/m64=/s/lib64/lib/' \
+                   -e '/m32=/s/m32=.*/m32=..\/lib32$(call if_multiarch,:i386-linux-gnu)/' \
+                   -i.orig gcc/config/i386/t-linux64
+      workdir: '@THIS_SOURCE_DIR@'
+    - args:
+      - |
+           sed '/STACK_REALIGN_DEFAULT/s/0/(!TARGET_64BIT \&\& TARGET_SSE)/' \
+                  -i gcc/config/i386/i386.h
+      workdir: '@THIS_SOURCE_DIR@'
+    - args:
+      - |
+           sed '/thread_header =/s/@.*@/gthr-posix.h/' \
+                  -i libgcc/Makefile.in libstdc++-v3/include/Makefile.in
+      workdir: '@THIS_SOURCE_DIR@'
 
 tools:
   - name: system-gcc
-    version: '15.2.0'
+    version: '14.2.0'
     from_source: gcc
     tools-required:
       - system-binutils
     configure:
       - args:
         - '@THIS_SOURCE_DIR@/configure'
-        - '--target=x86_64-elf'
+        - '--target=@TARGET@'
         - '--prefix=@PREFIX@'
+        - '--with-glibc-version=2.42'
+        - '--with-sysroot=@SYSROOT_DIR@'
+        - '--with-newlib'
         - '--without-headers'
+        - '--enable-default-pie'
+        - '--enable-default-ssp'
         - '--enable-initfini-array'
+        - '--enable-multilib --with-multilib-list=m64,m32,mx32'
         - '--enable-languages=c,c++'
         - '--disable-shared'
         - '--disable-nls'
-        - '--disable-hosted-libstdcxx'
+        - '--disable-decimal-float'
+        - '--disable-threads'
+        - '--disable-libatomic'
+        - '--disable-libgomp'
+        - '--disable-libquadmath'
+        - '--disable-libssp'
+        - '--disable-libvtv'
+        - '--disable-libstdcxx'
         environ:
           CFLAGS: '-O2 -pipe'
-          CXXFLAGS: '-O2 -pipe'        
+          CXXFLAGS: '-O2 -pipe'
     stages:
       - name: compiler
         compile:
-          - args: ['make', '-j@PARALLELISM@', 'all-gcc']
+          - args: ['make', '-j@PARALLELISM@']
         install:
-          - args: ['make', 'install-gcc']
-      - name: libgcc
+          - args: ['make', 'install']
+          - args:
+            - |
+                cat @THIS_SOURCE_DIR@/gcc/limitx.h @THIS_SOURCE_DIR@/gcc/glimits.h @THIS_SOURCE_DIR@/gcc/limity.h . \
+                        $(dirname $(@TARGET@-gcc -print-libgcc-file-name))/include/limits.h
+      - name: libstdc++
+        pkgs-required:
+          - host-glibc
         tools-required:
           - tool: system-gcc
             stage-dependencies: [compiler]
         compile:
+          - args: ['rm', '-rf', '@THIS_BUILD_DIR@']
           - args:
             - |
-                make all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=kernel -mno-red-zone' || true
-            shell: True
-          - args: ['sed', '-i', "s/PICFLAG/DISABLED_PICFLAG/g", 'x86_64-elf/libgcc/Makefile']
-          - args: ['sed', '-i', "s/PICFLAG/DISABLED_PICFLAG/g", 'x86_64-elf/no-red-zone/libgcc/Makefile']
-          - args:
-            - |
-                make all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=kernel -mno-red-zone'
-            shell: True
+                @THIS_SOURCE_DIR@/libstdc++-v3/configure
+                --host=@TARGET@                 \
+                --build=$(../config.guess)      \
+                --prefix=/usr                   \
+                --enable-multilib               \
+                --disable-nls                   \
+                --disable-libstdcxx-pch         \
+                --with-gxx-include-dir=@PREFIX@/@TARGET@/include/c++/14.2.0
+          - args: ['make', '-j@PARALLELISM@']
         install:
-          - args: ['make', 'install-target-libgcc']
-      - name: libstdc++
-        tools-required:
-          - tool: system-gcc
-            stage-dependencies: [libgcc]
-        compile:
-          - args: ['make', '-j@PARALLELISM@', 'all-target-libstdc++-v3']
-        install:
-          - args: ['make', 'install-target-libstdc++-v3']          
-  - name: host-gcc
-    version: '15.2.0'
-    from_source: gcc
-    tools-required:
-      - host-binutils
-    configure:
-      - args:
-        - '@THIS_SOURCE_DIR@/configure'
-        - '--prefix=@PREFIX@'
-        - '--target=@TARGET@'
-        - '--with-sysroot=@SYSROOT_DIR@'
-        - '--enable-shared'
-        - '--enable-languages=c,c++'
-        - '--enable-initfini-array'
-        - '--disable-nls'
-        environ:
-          CFLAGS: '-O2 -pipe'
-          CXXFLAGS: '-O2 -pipe'          
-    stages:
-      - name: compiler
-        pkgs-required:
-          - mlibc-headers
-        compile:
-          - args: ['make', '-j@PARALLELISM@', 'all-gcc']
-        install:
-          - args: ['make', 'install-gcc']
-      - name: libgcc
-        tools-required:
-          - tool: host-gcc
-            stage-dependencies: [compiler]
-        pkgs-required:
-          - mlibc
-        compile:
-          - args: ['make', '-j@PARALLELISM@', 'all-target-libgcc']
-        install:
-          - args: ['make', 'install-target-libgcc']
-      - name: libstdc++
-        tools-required:
-          - tool: host-gcc
-            stage-dependencies: [libgcc]
-        compile:
-          - args: ['make', '-j@PARALLELISM@', 'all-target-libstdc++-v3']
-        install:
-          - args: ['make', 'install-target-libstdc++-v3']
+          - args: ['make', 'install']
+            environ:
+              DESTDIR: '@SYSROOT_DIR@'
