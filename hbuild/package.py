@@ -12,18 +12,22 @@ from .step import Step
 from .source import SourcePackage
 from .stage import Stage
 
+from persistqueue import FIFOSQLiteQueue
+
 class Package:
-    def __init__(self, source_data, sources_dir,  builds_dir, packages_dir, works_dir, system_targets, system_prefix, system_root):
+    def __init__(self, source_data, logs_dir, sources_dir,  builds_dir, packages_dir, works_dir, system_targets, system_prefix, system_root):
         source_properties = source_data
 
         self.name = source_properties["name"]
         self.version = source_properties["version"]
 
+        self.logs_dir = logs_dir
         self.sources_dir = sources_dir
         self.builds_dir = builds_dir
         self.packages_dir = packages_dir
         self.works_dir = works_dir
 
+        self.log_dir = os.path.join(logs_dir, self.name)
         self.work_dir = os.path.join(self.works_dir, self.name)
         self.build_dir = os.path.join(builds_dir, self.name)
         self.package_dir = os.path.join(packages_dir, self.name)
@@ -37,6 +41,9 @@ class Package:
 
         self.podman_client = podman.from_env()
         self.podman_container: PodmanContainer = None
+
+        self.console_queue = FIFOSQLiteQueue(os.path.join(self.log_dir, "master.db"), multithreading=True, auto_commit=True)
+        self.last_return_status = None
 
         self.metadata = source_properties["metadata"]
 
@@ -129,6 +136,8 @@ class Package:
             stage.link_source(source_package)
 
     def make_container(self):
+        if self.podman_container is not None:
+            pass
         self.podman_container = self.podman_client.containers.run(
             'hbuild:latest',
             stdout=True,
@@ -235,9 +244,10 @@ class Package:
             shutil.rmtree(self.package_dir)
         self.prune_system()
     
-    def exec_steps(self, steps: list[Step]):
+    def exec_steps(self, steps: list[Step]) -> int | Exception:
+        return_code: int | Exception= None
         for step in steps:
-            step.exec(
+            return_code = step.exec(
                 '/home/hbuild/system_prefix',
                 self.system_targets,
                 '/home/hbuild/source_root',
@@ -249,17 +259,23 @@ class Package:
                 '/home/hbuild/package',
                 '/home/hbuild/system_root',
 
-                self.podman_container
+                self.podman_container,
+                self
             )
 
-    def configure(self):
-        self.exec_steps(self.configure_steps)
+            if isinstance(return_code, Exception):
+                break
+        
+        return return_code
 
-    def build(self, stage: Stage = None):
+    def configure(self) -> int:
+        return self.exec_steps(self.configure_steps)
+
+    def build(self, stage: Stage = None) -> int:
         if stage is None:
-            self.exec_steps(self.build_steps)
+            return self.exec_steps(self.build_steps)
         else:
-            self.exec_steps(stage.build_steps)
+            return self.exec_steps(stage.build_steps)
 
     def files_size(self):
         total_size = 0

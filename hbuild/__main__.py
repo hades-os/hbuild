@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import re
@@ -16,6 +17,7 @@ from argparse_dataclass import ArgumentParser
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sse_starlette import EventSourceResponse, ServerSentEvent
 
 from pathlib import Path
 
@@ -57,6 +59,8 @@ class HBuild(Routable):
         self.commit_lock = threading.Lock()
         self.build_locks: dict[str, threading.Lock]  = {}
 
+        self.logs_dir = Path(self.config["hbuild"]["logs_dir"]).resolve().as_posix()
+
         self.sources_dir = Path(self.config["hbuild"]["sources_dir"]).resolve().as_posix()
         self.tools_dir = Path(self.config["hbuild"]["tools_dir"]).resolve().as_posix()
         self.packages_dir = Path(self.config["hbuild"]["packages_dir"]).resolve().as_posix()
@@ -86,7 +90,7 @@ class HBuild(Routable):
             self.config = toml.load(f)
 
     def load_lock(self) -> None:
-        Path("hbuild.lock").touch(exist_ok=True)
+        Path("hbuild.lock").write_text("{}")
 
         with open("hbuild.lock", "r+") as f:
             self.lock = json.load(f)
@@ -154,9 +158,10 @@ class HBuild(Routable):
 
                     self.sources.append(SourcePackage(
                         pkgsrc_yml["source"],
+                        self.logs_dir,
                         self.sources_dir,
                         self.patches_dir,
-                        
+
                         self.system_targets,
                         self.system_prefix,
                         self.system_root
@@ -169,6 +174,7 @@ class HBuild(Routable):
 
                         tool_package = ToolPackage(
                             tool_yml,
+                            self.logs_dir,
                             self.sources_dir,
                             self.builds_dir,
 
@@ -177,11 +183,11 @@ class HBuild(Routable):
 
                             self.system_targets,
                             self.system_prefix,
-                            self.system_root                        
+                            self.system_root
                         )
-                        
+
                         self.link_source(tool_package.name, tool_package.source_name)
-                        self.tools.append(tool_package)                        
+                        self.tools.append(tool_package)
                 if "packages" in pkgsrc_yml:
                     for package_yml in pkgsrc_yml["packages"]:
                         package_validator = Draft7Validator(self.schemas["package"], registry = self.registry)
@@ -189,6 +195,7 @@ class HBuild(Routable):
 
                         package = Package(
                             package_yml,
+                            self.logs_dir,
                             self.sources_dir,
                             self.builds_dir,
 
@@ -202,7 +209,7 @@ class HBuild(Routable):
 
                         self.link_source(package.name, package.source_name)
                         self.packages.append(package)
-                    
+
     def make_dir(self, package: Package | ToolPackage | SourcePackage):
         package.make_dirs()
 
@@ -217,7 +224,7 @@ class HBuild(Routable):
                 package, _ = pkg_mapping
             else:
                 package = pkg_mapping
-            
+
             package.tidy()
 
     def clean_dir(self, package: Package | ToolPackage | SourcePackage):
@@ -332,7 +339,7 @@ class HBuild(Routable):
 
             if package.system_package is True and package.name not in system_deps:
                 system_deps[package.name] = self.pkg_idxs[package.name]
-            
+
             if package.no_deps is True:
                 no_deps.append(package.name)
 
@@ -349,7 +356,7 @@ class HBuild(Routable):
                 for dep in stage_deps:
                     if dep not in self.pkg_idxs:
                         self.pkg_idxs[dep] = self.dep_graph.add_node(dep)
-                
+
         # TODO: avoid two loops
 
         for pkg, deps in self.dep_dict.items():
@@ -361,7 +368,7 @@ class HBuild(Routable):
 
                 dep_idx = self.pkg_idxs[dep]
                 self.dep_graph.add_edge(pkg_idx, dep_idx, None)
-            
+
             if pkg not in no_deps and pkg not in system_deps and pkg in self.package_names:
                 for system_dep in system_deps.values():
                     self.dep_graph.add_edge(pkg_idx, system_dep, None)
@@ -401,15 +408,15 @@ class HBuild(Routable):
                     self.pkg_map[node] = self.find_package(node)
                 else:
                     raise Exception(f"Unable to resolve package {node}")
-                
-    
+
+
     def create_locks(self):
         for _, pkg_mapping in self.pkg_map.items():
             if isinstance(pkg_mapping, tuple):
                 package, _ = pkg_mapping
             else:
-                package = pkg_mapping             
-            
+                package = pkg_mapping
+
             self.build_locks[package.name] = threading.Lock()
     def resolve_deps(self, selection, op):
         dep_graph = self.dep_graph
@@ -477,10 +484,16 @@ class HBuild(Routable):
     def build_source(self, package: SourcePackage):
         source_name = f"source[{package.name}]"
         if self.has_installed(source_name) is False:
-            package.prepare()
+            resp = package.prepare()
+            if isinstance(resp, Exception):
+                print(f"Failed to prepare source {package.name}, exit message: {resp}")
+                return
             os.sync()
 
-            package.regenerate()
+            resp = package.regenerate()
+            if isinstance(resp, Exception):
+                print(f"Failed to regenerate source {package.name}, exit message: {resp}")
+                return
             os.sync()
 
             self.mark_installed(source_name)
@@ -489,19 +502,31 @@ class HBuild(Routable):
         stage = package.find_stage(stage_name)
 
         if self.has_configured(package.name) is False:
-            package.configure()
+            resp = package.configure()
+            if isinstance(resp, Exception):
+                print(f"Failed to configure {package.name}, exit message: {resp}")
+                return
+
             os.sync()
             self.mark_configured(package.name)
 
         full_stage_name = f"{package.name}[{stage_name}]"
         if stage is not None:
             if self.has_built(full_stage_name) is False:
-                package.compile(stage)
+                resp = package.compile(stage)
+                if isinstance(resp, Exception):
+                    print(f"Failed to build {package.name}[{stage.name}], exit message: {resp}")
+                    return
+
                 os.sync()
                 self.mark_built(full_stage_name)
 
             if self.has_installed(full_stage_name) is False:
-                package.install(stage)
+                resp = package.install(stage)
+                if isinstance(resp, Exception):
+                    print(f"Failed to install {package.name}[{stage.name}], exit message: {resp}")
+                    return
+
                 os.sync()
 
                 package.copy_tool()
@@ -510,34 +535,53 @@ class HBuild(Routable):
                 self.mark_installed(full_stage_name)
         else:
             if self.has_built(package.name) is False:
-                package.compile(None)
+                resp = package.compile(None)
+                if isinstance(resp, Exception):
+                    print(f"Failed to build {package.name}, exit message: {resp}")
+                    return
+
                 os.sync()
                 self.mark_built(package.name)
-
             if self.has_installed(package.name) is False:
-                package.install(None)
+                resp = package.install(None)
+                if isinstance(resp, Exception):
+                    print(f"Failed to install {package.name}, exit message: {resp}")
+                    return
+
                 os.sync()
 
                 package.copy_tool()
                 os.sync()
 
                 self.mark_installed(package.name)
-            
+
     def build_system(self, package: Package, stage_name: str):
         stage = package.find_stage(stage_name)
 
         if self.has_configured(package.name) is False:
-            package.configure()
+            resp = package.configure()
+            if isinstance(resp, Exception):
+                print(f"Failed to configure {package.name}, exit message: {resp}")
+                return
+
             os.sync()
             self.mark_configured(package.name)
 
         full_stage_name = f"{package.name}[{stage_name}]"
         if stage is not None and self.has_built(full_stage_name) is False:
-            package.build(stage)
+            resp = package.build(stage)
+            if isinstance(resp, Exception):
+                print(f"Failed to build {package.name}[{stage.name}], exit code: {resp.return_code}")
+                return
+
             os.sync()
             self.mark_built(full_stage_name)
         elif self.has_built(package.name) is False:
-            package.build(None)
+            resp = package.build(None)
+            if isinstance(resp, Exception):
+                print(f"Failed to build {package.name}, exit code: {resp.return_code}")
+                return
+
             os.sync()
             self.mark_built(package.name)
 
@@ -553,7 +597,7 @@ class HBuild(Routable):
 
     def build_package(self, package: Package | ToolPackage | SourcePackage, stage_name: str):
         print(f"Installing {package.name}")
-        
+
         if isinstance(package, SourcePackage):
             self.build_source(package)
         elif isinstance(package, ToolPackage):
@@ -572,24 +616,50 @@ class HBuild(Routable):
 
             with self.build_locks[package.name]:
                 self.make_dir(package)
-                self.make_container(package)            
+                self.make_container(package)
                 self.build_package(package, stage_name)
-    
+
     def install(self, install_order):
         for pkg_idx in install_order:
             pkg_mapping = self.pkg_map[self.dep_graph[pkg_idx]]
             if isinstance(pkg_mapping, tuple):
-                package, _ = pkg_mapping
+                package, stage_name = pkg_mapping
             else:
-                package = pkg_mapping
+                package, stage_name = pkg_mapping, None
 
             with self.build_locks[package.name]:
                 if isinstance(package, Package):
+                    if stage_name is None:
+                        if self.has_built(package.name) is False:
+                            self.make_dir(package)
+                            self.make_container(package)
+                            self.build_system(package, None)
+                            self.build_deb(package)
+                    else:
+                        full_stage_name = f"{package.name}[{stage_name}]"
+                        if self.has_built(full_stage_name) is False:
+                            self.make_dir(package)
+                            self.make_container(package)
+                            self.build_system(package, stage_name)
+                            self.build_deb(package)
                     package.copy_system()
                 elif isinstance(package, ToolPackage):
+                    if stage_name is None:
+                        if self.has_built(package.name) is False:
+                            self.make_dir(package)
+                            self.make_container(package)
+                            self.build_tool(package, None)
+                    else:
+                        full_stage_name = f"{package.name}[{stage_name}]"
+                        if self.has_built(full_stage_name) is False:
+                            self.make_dir(package)
+                            self.make_container(package)
+                            self.build_tool(package, stage_name)
                     package.copy_tool()
                 else:
-                    rich_print("[yellow] WARN: Source passed to hbuild.install")
+                    self.make_dir(package)
+                    self.make_container(package)
+                    self.build_source(package)
 
     def clean(self, install_order):
         for pkg_idx in install_order:
@@ -630,7 +700,7 @@ class HBuild(Routable):
             return False
 
     def has_installed(self, pkg_name):
-        with self.commit_lock:            
+        with self.commit_lock:
             if pkg_name in self.lock and self.lock[pkg_name] == HBuildState.INSTALLED:
                 return True
             return False
@@ -649,7 +719,7 @@ class HBuild(Routable):
             self.lock[pkg_name] = HBuildState.BUILT
 
     def unmark_built(self, pkg_name):
-        with self.commit_lock:        
+        with self.commit_lock:
             if pkg_name in self.lock:
                 self.lock[pkg_name] = HBuildState.CONFIGURED
 
@@ -683,12 +753,12 @@ class HBuild(Routable):
         except Exception as err:
             raise err
         finally:
-            hbuild.tidy(install_order)        
+            hbuild.tidy(install_order)
 
     @get('/')
     def get_root(self) -> str:
         return "hello world"
-    
+
     @get('/api/status')
     def get_list(self) -> list[str]:
         pkg_status_list = []
@@ -719,7 +789,42 @@ class HBuild(Routable):
         return {
             "packages": pkg_status_list
         }
-    
+
+    @get('/api/log/{name}')
+    def get_log(self, name: str):
+        if name not in self.pkg_map.keys():
+            raise HTTPException(status_code=404, detail=f"{name} is not a system, tool, or source package")
+
+        def streamer():
+            package: Package | SourcePackage | ToolPackage = self.pkg_map[name]
+            count = 0
+            while True:
+                try:
+                    data = package.console_queue.get(block=False)
+                except:
+                    continue
+
+                yield ServerSentEvent(
+                    data=data,
+                    id=f"log-{count}",
+                    retry=5000,
+                    event="log"
+                )
+
+                count += 1
+
+        return EventSourceResponse(streamer(), ping=2)
+
+    @get('/api/status/{name}')
+    def get_status(self, name: str):
+        if name not in self.pkg_map.keys():
+            raise HTTPException(status_code=404, detail=f"{name} is not a system, tool, or source package")
+
+        package: Package | SourcePackage | ToolPackage = self.pkg_map[name]
+        return {
+            "return_code": package.last_return_status if package.last_return_status is not None else 0
+        }
+
     @post('/api/resolve')
     def post_resolve(self, req: ResolveOrder):
         to_resolve = []
@@ -729,7 +834,7 @@ class HBuild(Routable):
             if package not in self.pkg_map.keys():
                 raise HTTPException(status_code=404, detail=f"Package {package} does not exist or is not available.")
             to_resolve.append(package)
-                
+
         _, dep_graph = self.resolve_deps(to_resolve, "build")
 
         edge_data = []
@@ -742,7 +847,7 @@ class HBuild(Routable):
         return {
             "packages": edge_data
         }
-        
+
     @post('/api/build', status_code=202)
     def post_build(self, req: BuildOrder, background_tasks: BackgroundTasks) -> None:
         to_build = []
@@ -755,7 +860,7 @@ class HBuild(Routable):
                 to_build.append(f"{package.name}[{package.stage}]")
             else:
                 to_build.append(package.name)
-        
+
         install_order, dep_graph = self.resolve_deps(to_build, req.build_to)
 
         def execute_build():
@@ -766,7 +871,6 @@ class HBuild(Routable):
         return {
             "message": "Building packages"
         }
-
 
 @argclass
 class HBuildArgs:
@@ -800,21 +904,20 @@ def main():
     except Exception as err:
         raise err
     finally:
-        hbuild.tidy(true_install_order)   
+        hbuild.tidy(true_install_order)
 
 
 hbuild = HBuild()
-
-origins = [
+origins =  [
     'http://localhost:3000',
-    'http://localhost'
+    'http://10.0.0.48:3000'
 ]
 
 app = FastAPI()
 app.include_router(hbuild.router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins = origins,
+    allow_origins =origins,
     allow_credentials = True,
     allow_methods = ['*'],
     allow_headers = ['*']

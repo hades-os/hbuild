@@ -110,22 +110,34 @@ class Step:
 
         return replaced_args, replaced_environ, replaced_workdir
 
-    def exec(self, system_prefix, system_targets,  sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root, container: PodmanContainer):
-        args, environ, workdir = self.do_substitutions(system_prefix, system_targets,  sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root)
+    def exec(self, system_prefix, system_targets,  
+            sources_dir, builds_dir, source_dir,  
+            build_dir, collect_dir, system_root, 
+            container: PodmanContainer, package_object):
+        args, environ, workdir = self.do_substitutions(system_prefix, system_targets,  
+                                                       sources_dir, builds_dir, source_dir,  
+                                                       build_dir, collect_dir, system_root)
 
         return_code: int = None
-        response: bytes = None
 
+        mux = None
         if self.shell is True:
-            return_code, response = container.exec_run(cmd = ['/bin/bash', '-c', *args], environment = environ, workdir = workdir,
-                user='hbuild', tty=True)
+            _, mux = container.exec_run(cmd = ['/bin/bash', '-c', *args], environment = environ, workdir = workdir,
+                user='hbuild', tty=True, stream=True)
         else:
-            return_code, response = container.exec_run(cmd = args, environment = environ, workdir = workdir,
-                user='hbuild', tty=True)
+            _, mux = container.exec_run(cmd = args, environment = environ, workdir = workdir,
+                user='hbuild', tty=True, stream=True)
             
-        print(response.decode())
+        for chunk in mux:
+            decoded_chunk = chunk.decode('utf-8')
+            package_object.console_queue.put(decoded_chunk)
+
+        return_code = container.inspect()["State"]["ExitCode"]
+        package_object.last_return_status = return_code
         if return_code > 0:
-            raise Exception(f"Error running step for package {self.package.name}: exit {return_code}")
+            return Exception(f"Error running step for package {self.package.name}: exit {return_code}")
+        
+        return return_code
         
     def __str__(self):
         return f"Step: {self.environ} {self.args}: {self.workdir}"

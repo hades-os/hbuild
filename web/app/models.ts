@@ -20,8 +20,18 @@ type PackageStatusList = {
     packages: PackageStatus[]
 }
 
+type ServerSentEvent = {
+    id: string;
+    event: string;
+    data: string;
+    retry?: number;
+}
+
 export type {
     PackageStatusList,
+    PackageStatus,
     HBuildState,
-    HBuildPackageType
+    HBuildPackageType,
+
+    ServerSentEvent
 }
