@@ -9,15 +9,14 @@ type StageStatus = {
     status: HBuildState
 }
 
-type PackageStatus = {
+type PackageInfo = {
     name: string,
     type: HBuildPackageType,
-    status: HBuildState,
     stages?: StageStatus[]
 }
 
-type PackageStatusList = {
-    packages: PackageStatus[]
+type PackageInfoList = {
+    packages: PackageInfo[]
 }
 
 type ServerSentEvent = {
@@ -28,8 +27,8 @@ type ServerSentEvent = {
 }
 
 export type {
-    PackageStatusList,
-    PackageStatus,
+    PackageInfoList,
+    PackageInfo,
     HBuildState,
     HBuildPackageType,
 

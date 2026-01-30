@@ -1,48 +1,47 @@
-import podman
-from podman.domain.containers import Container as PodmanContainer
-
 import math
 import os
 import shutil
 import subprocess
+from pathlib import Path
 
-from enum import Enum
+import podman
+from persistqueue import FIFOSQLiteQueue
+from podman.domain.containers import Container as PodmanContainer
 
-from .step import Step
+from .config import HPackageConfig
 from .source import SourcePackage
 from .stage import Stage
-
-from persistqueue import FIFOSQLiteQueue
+from .step import Step
 
 class Package:
-    def __init__(self, source_data, logs_dir, sources_dir,  builds_dir, packages_dir, works_dir, system_targets, system_prefix, system_root):
-        source_properties = source_data
+    def __init__(self, config: HPackageConfig):
+        self.config = config
+
+        source_properties = config.pkgsrc_yml
 
         self.name = source_properties["name"]
         self.version = source_properties["version"]
 
-        self.logs_dir = logs_dir
-        self.sources_dir = sources_dir
-        self.builds_dir = builds_dir
-        self.packages_dir = packages_dir
-        self.works_dir = works_dir
+        self.logs_dir = config.logs_dir
+        self.sources_dir = config.sources_dir
+        self.builds_dir = config.builds_dir
+        self.packages_dir = config.packages_dir
+        self.works_dir = config.works_dir
 
-        self.log_dir = os.path.join(logs_dir, self.name)
-        self.work_dir = os.path.join(self.works_dir, self.name)
-        self.build_dir = os.path.join(builds_dir, self.name)
-        self.package_dir = os.path.join(packages_dir, self.name)
-        self.system_prefix = system_prefix
-        self.system_targets = system_targets
-        self.system_root = system_root
+        self.log_dir = Path(config.logs_dir, self.name).resolve().as_posix()
+        self.work_dir = Path(self.works_dir, self.name).resolve().as_posix()
+        self.build_dir = Path(config.builds_dir, self.name).resolve().as_posix()
+        self.package_dir = Path(config.packages_dir, self.name).resolve().as_posix()
+        self.system_prefix = config.system_prefix
+        self.system_targets = config.system_targets
+        self.system_root = config.system_root
 
-        self.source = None
-        self.source_dir = None
+        self.source_dir = config.source_dir
         self.source_name = source_properties["from_source"]
 
         self.podman_client = podman.from_env()
         self.podman_container: PodmanContainer = None
 
-        self.console_queue = FIFOSQLiteQueue(os.path.join(self.log_dir, "master.db"), multithreading=True, auto_commit=True)
         self.last_return_status = None
 
         self.metadata = source_properties["metadata"]
@@ -67,23 +66,28 @@ class Package:
         else:
             self.pkgs_required = []
 
+        self.configure_ymls: list[dict[str, str]] = []
+        self.build_ymls: list[dict[str, str]] = []
+        self.stage_ymls: list[dict[str, str]] = []
+
         self.configure_steps: list[Step] = []
+        self.build_steps: list[Step] = []
+        self.stages: list[Stage] = []
+
         if "configure" in source_properties:
             configure_properties = source_properties["configure"]
-            for step in configure_properties:
-                self.configure_steps.append(Step(step, self))
+            for step_yml in configure_properties:
+                self.configure_ymls.append(step_yml)
 
-        self.build_steps: list[Step] = []
         if "build" in source_properties:
             build_properties = source_properties["build"]
-            for step in build_properties:
-                self.build_steps.append(Step(step, self))
+            for step_yml in build_properties:
+                self.build_ymls.append(step_yml)
 
-        self.stages: list[Stage] = []
         if "stages" in source_properties:
             stages_properties = source_properties["stages"]
-            for stage in stages_properties:
-                self.stages.append(Stage(stage, self))
+            for stage_yml in stages_properties:
+                self.stage_ymls.append(stage_yml)
 
     @property
     def num_stages(self):
@@ -130,7 +134,6 @@ class Package:
         return deps
     
     def link_source(self, source_package: SourcePackage):
-        self.source = source_package
         self.source_dir = source_package.source_dir
         for stage in self.stages:
             stage.link_source(source_package)
@@ -196,6 +199,9 @@ class Package:
             tty=True
         )
 
+    def kill_build(self):
+        self.podman_container.kill(signal='SIGKILL')
+
     def tidy(self):
         if self.podman_container is not None:
             self.podman_container.kill(signal='SIGKILL')
@@ -209,23 +215,23 @@ class Package:
 
     def prune_system(self):
         deleted = set()
-        for dir, subdirs, files in os.walk(self.system_root, topdown=False):
-            still_has_subdirs = False
-            for subdir in subdirs:
-                if os.path.join(dir, subdir) not in deleted:
-                    still_has_subdirs = True
+        for dent, subdir, files in os.walk(self.system_root, topdown=False):
+            still_has_subdir = False
+            for subent in subdir:
+                if os.path.join(dent, subent) not in deleted:
+                    still_has_subdir = True
                     break
 
-            if not any(files) and not still_has_subdirs:
-                os.rmdir(dir)
-                deleted.add(dir)
+            if not any(files) and not still_has_subdir:
+                os.rmdir(dent)
+                deleted.add(dent)
 
     def clean_dirs(self):
         pkg_root_dir = self.package_dir
 
-        for dir, _, files in os.walk(pkg_root_dir):
+        for dent, _, files in os.walk(pkg_root_dir):
             for f in files:
-                f_path = os.path.join(dir, f)
+                f_path = os.path.join(dent, f)
                 if os.path.lexists(f_path):
                     f_rel_path = os.path.relpath(f_path, pkg_root_dir)
 
@@ -245,7 +251,7 @@ class Package:
         self.prune_system()
     
     def exec_steps(self, steps: list[Step]) -> int | Exception:
-        return_code: int | Exception= None
+        return_code: int | Exception = None
         for step in steps:
             return_code = step.exec(
                 '/home/hbuild/system_prefix',
@@ -279,11 +285,11 @@ class Package:
 
     def files_size(self):
         total_size = 0
-        for dir, subdirs, files in os.walk(self.package_dir):
-            for _ in subdirs:
+        for dent, subdir, files in os.walk(self.package_dir):
+            for _ in subdir:
                 total_size += 1024
             for file in files:
-                total_size += math.ceil(os.path.getsize(os.path.join(dir, file)) / 1024)
+                total_size += math.ceil(os.path.getsize(os.path.join(dent, file)) / 1024)
         
         return total_size
 

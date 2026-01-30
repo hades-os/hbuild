@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import podman
 from podman.domain.containers import Container as PodmanContainer
 
@@ -7,6 +9,7 @@ from enum import Enum
 import shutil
 import subprocess
 
+from .config import HPackageConfig
 from .step import Step
 from .source import SourcePackage
 from .stage import Stage
@@ -14,34 +17,34 @@ from .stage import Stage
 from persistqueue import FIFOSQLiteQueue
 
 class ToolPackage:
-    def __init__(self, source_data, logs_dir, sources_dir,  builds_dir, tools_dir, works_dir, system_targets, system_prefix, system_root):
-        source_properties = source_data
+    def __init__(self, config: HPackageConfig):
+        self.config = config
+
+        source_properties = config.pkgsrc_yml
 
         self.name = source_properties["name"]
         self.version = source_properties["version"]
 
-        self.logs_dir = logs_dir
-        self.sources_dir = sources_dir
-        self.builds_dir = builds_dir
-        self.tools_dir = tools_dir
-        self.works_dir = works_dir
+        self.logs_dir = config.logs_dir
+        self.sources_dir = config.sources_dir
+        self.builds_dir = config.builds_dir
+        self.tools_dir = config.tools_dir
+        self.works_dir = config.works_dir
 
-        self.log_dir = os.path.join(self.logs_dir, self.name)
-        self.work_dir = os.path.join(self.works_dir, self.name)
-        self.build_dir = os.path.join(builds_dir, self.name)
-        self.tool_dir = os.path.join(tools_dir, self.name)
-        self.system_prefix = system_prefix
-        self.system_targets = system_targets
-        self.system_root = system_root
+        self.log_dir = Path(self.logs_dir, self.name).resolve().as_posix()
+        self.work_dir = Path(self.works_dir, self.name).resolve().as_posix()
+        self.build_dir = Path(config.builds_dir, self.name).resolve().as_posix()
+        self.tool_dir = Path(config.tools_dir, self.name).resolve().as_posix()
+        self.system_prefix = config.system_prefix
+        self.system_targets = config.system_targets
+        self.system_root = config.system_root
 
-        self.source = None
-        self.source_dir = None
+        self.source_dir = config.source_dir
         self.source_name = source_properties["from_source"]
 
         self.podman_client = podman.from_env()
         self.podman_container: PodmanContainer = None
 
-        self.console_queue = FIFOSQLiteQueue(os.path.join(self.log_dir, "master.db"), multithreading=True, auto_commit=True)
         self.last_return_status = None
 
         if "tools-required" in source_properties:
@@ -54,29 +57,35 @@ class ToolPackage:
         else:
             self.pkgs_required = []
 
+        self.configure_ymls: list[dict[str, str]] = []
+        self.compile_ymls: list[dict[str, str]] = []
+        self.install_ymls: list[dict[str, str]] = []
+        self.stage_ymls: list[dict[str, str]] = []
+
         self.configure_steps: list[Step] = []
+        self.compile_steps: list[Step]  = []
+        self.install_steps: list[Step]  = []
+        self.stages: list[Stage] = []
+
         if "configure" in source_properties:
             configure_properties = source_properties["configure"]
-            for step in configure_properties:
-                self.configure_steps.append(Step(step, self))
+            for step_yml in configure_properties:
+                self.configure_ymls.append(step_yml)
 
-        self.compile_steps: list[Step]  = []
         if "compile" in source_properties:
-            compile_properties = source_properties["compile"]
-            for step in compile_properties:
-                self.compile_steps.append(Step(step, self))
+            configure_properties = source_properties["compile"]
+            for step_yml in configure_properties:
+                self.compile_ymls.append(step_yml)
 
-        self.install_steps: list[Step]  = []
         if "install" in source_properties:
-            install_properties = source_properties["install"]
-            for step in install_properties:
-                self.install_steps.append(Step(step, self))
+            configure_properties = source_properties["install"]
+            for step_yml in configure_properties:
+                self.install_ymls.append(step_yml)
 
-        self.stages: list[Stage] = []
         if "stages" in source_properties:
             stages_properties = source_properties["stages"]
-            for stage in stages_properties:
-                self.stages.append(Stage(stage, self))
+            for stage_yml in stages_properties:
+                self.stage_ymls.append(stage_yml)
 
     @property
     def num_stages(self):
@@ -116,7 +125,6 @@ class ToolPackage:
         return deps
 
     def link_source(self, source_package: SourcePackage):
-        self.source = source_package
         self.source_dir = source_package.source_dir
         for stage in self.stages:
             stage.link_source(source_package)
@@ -197,23 +205,23 @@ class ToolPackage:
 
     def prune_prefix(self):
         deleted = set()
-        for dir, subdirs, files in os.walk(self.system_prefix, topdown=False):
+        for dent, subdir, files in os.walk(self.system_prefix, topdown=False):
             still_has_subdirs = False
-            for subdir in subdirs:
-                if os.path.join(dir, subdir) not in deleted:
+            for subent in subdir:
+                if os.path.join(dent, subent) not in deleted:
                     still_has_subdirs = True
                     break
 
             if not any(files) and not still_has_subdirs:
-                os.rmdir(dir)
-                deleted.add(dir)
+                os.rmdir(dent)
+                deleted.add(dent)
 
     def clean_dirs(self):
         pkg_root_dir = self.tool_dir
 
-        for dir, _, files in os.walk(pkg_root_dir):
+        for dent, _, files in os.walk(pkg_root_dir):
             for f in files:
-                f_path = os.path.join(dir, f)
+                f_path = os.path.join(dent, f)
                 if os.path.lexists(f_path):
                     f_rel_path = os.path.relpath(f_path, pkg_root_dir)
 
@@ -255,6 +263,9 @@ class ToolPackage:
                 break
         
         return return_code
+
+    def kill_build(self):
+        self.podman_container.kill(signal='SIGKILL')
 
     def configure(self):
         self.exec_steps(self.configure_steps)

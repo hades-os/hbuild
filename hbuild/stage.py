@@ -1,11 +1,14 @@
+from .config import HPackageConfig
 from .step import Step
 
 class Stage:
-    def __init__(self, source_data, package):
-        source_properties = source_data
+    def __init__(self, config: HPackageConfig, package_name: str):
+        self.config = config
+        self.package_name = package_name
+
+        source_properties = config.pkgsrc_yml
 
         self.name = source_properties["name"]
-        self.source_dir = None
 
         if "tools-required" in source_properties:
             self.tools_required = source_properties["tools-required"]
@@ -17,23 +20,28 @@ class Stage:
         else:
             self.pkgs_required = []
 
+        self.compile_ymls: list[dict[str, str]] = []
+        self.install_ymls: list[dict[str, str]] = []
+        self.build_ymls: list[dict[str, str]] = []
+
         self.compile_steps: list[Step] = []
-        if "compile" in source_properties:
-            compile_properties = source_properties["compile"]
-            for step in compile_properties:
-                self.compile_steps.append(Step(step, self))
-
         self.install_steps: list[Step] = []
-        if "install" in source_properties:
-            install_properties = source_properties["install"]
-            for step in install_properties:
-                self.install_steps.append(Step(step, self))
-
         self.build_steps: list[Step] = []
+
+        if "compile" in source_properties:
+            configure_properties = source_properties["compile"]
+            for step_yml in configure_properties:
+                self.compile_ymls.append(step_yml)
+
+        if "install" in source_properties:
+            configure_properties = source_properties["install"]
+            for step_yml in configure_properties:
+                self.install_ymls.append(step_yml)
+
         if "build" in source_properties:
             build_properties = source_properties["build"]
-            for step in build_properties:
-                self.build_steps.append(Step(step, self))
+            for step_yml in build_properties:
+                self.build_ymls.append(step_yml)
     
     def deps(self):
         deps = []
@@ -51,9 +59,6 @@ class Stage:
             deps.append(pkg)
         
         return deps
-
-    def link_source(self, source):
-        self.source_dir = source.source_dir
     
     def __str__(self):
         return f"Stage {self.name}: {self.tools_required}, {self.pkgs_required}"

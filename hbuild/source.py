@@ -1,32 +1,15 @@
+import os
+import shutil
+from enum import Enum
+from pathlib import Path
+from urllib.parse import urlparse
+
 import podman
+from persistqueue import FIFOSQLiteQueue
 from podman.domain.containers import Container as PodmanContainer
 
-import os
-import subprocess
-
-from enum import Enum
-from functools import partial
-
 from .step import Step
-
-import git
-from git import RemoteProgress, Repo
-
-from pathlib import Path
-import shutil
-
-import tarfile
-from tarfile import TarInfo
-
-from rich.progress import Progress
-from rich import print as rich_print
-
-from subprocess import CalledProcessError
-
-from urllib.parse import urlparse
-from urllib.request import urlopen
-
-from persistqueue import FIFOSQLiteQueue
+from .config import HPackageConfig
 
 class SourceType(Enum):
     URL = 1
@@ -38,8 +21,10 @@ class CloneType(Enum):
     TAG = 2
 
 class SourcePackage:
-    def __init__(self, source_data, logs_dir, sources_dir, patches_dir, system_targets, system_prefix, system_root):
-        source_properties = source_data
+    def __init__(self, config: HPackageConfig):
+        self.config = config
+
+        source_properties = config.pkgsrc_yml
 
         self.name = source_properties["name"]
 
@@ -49,22 +34,21 @@ class SourcePackage:
         else:
             self.dir = self.name
 
-        self.patches_dir = patches_dir
-        self.logs_dir = logs_dir
-        self.sources_dir = sources_dir
+        self.patches_dir = config.patches_dir
+        self.logs_dir = config.logs_dir
+        self.sources_dir = config.sources_dir
 
-        self.system_prefix = system_prefix
-        self.system_targets = system_targets
-        self.system_root = system_root
+        self.system_prefix = config.system_prefix
+        self.system_targets = config.system_targets
+        self.system_root = config.system_root
 
-        self.log_dir = os.path.join(logs_dir, f"source[{self.name}]")
-        self.patch_dir = os.path.join(patches_dir, self.name)
-        self.source_dir = os.path.join(sources_dir, self.dir)
+        self.log_dir = Path(config.logs_dir, f"source[{self.name}]").resolve().as_posix()
+        self.patch_dir = Path(config.patches_dir, self.name).resolve().as_posix()
+        self.source_dir = Path(config.sources_dir, self.dir).resolve().as_posix()
 
         self.podman_client = podman.from_env()
-        self.podman_container: PodmanContainer = None
+        self.podman_container: PodmanContainer | None = None
 
-        self.console_queue = FIFOSQLiteQueue(os.path.join(self.log_dir, "master.db"), multithreading=True, auto_commit=True)
         self.last_return_status = None
 
         self.version = source_properties["version"]
@@ -111,20 +95,20 @@ class SourcePackage:
             if self.branch is None:
                 self.acquire_steps.append(Step({
                     "args": ["git", "clone", self.git, '/home/hbuild/source']
-                }, self))
+                }, self.name))
             else:
                 self.acquire_steps.append(Step({
                     "args": ["git", "clone", "-b", self.branch, self.git, '/home/hbuild/source']
-                }, self))
+                }, self.name))
 
             if self.clone_type == CloneType.COMMIT or self.clone_type == CloneType.TAG:
                 self.acquire_steps.append(Step({
                     "args": ["git", "checkout", self.commit if self.clone_type == CloneType.COMMIT else self.tag],
-                }, self))
+                }, self.name))
         else:
             self.acquire_steps.append(Step({
                 "args": ["wget", self.url, "-P", '/home/hbuild/source_root']
-            }, self))            
+            }, self.name))
         
         if self.source_type == SourceType.URL:
             parsed_url = urlparse(self.url)
@@ -132,18 +116,20 @@ class SourcePackage:
             
             self.extract_steps.append(Step({
                 "args": ["tar", "-xvf" if self.format == "tar.xz" else "-xzvf", f"/home/hbuild/source_root/{output_file}",  "-C", '/home/hbuild/source', "--strip-components=1"]
-            }, self))
+            }, self.name))
 
         self.patch_steps: list[Step] = [Step({
             "args": "find @THIS_SOURCE_DIR@ -type f -name '*.patch' -print0 | xargs -0 -n 1 patch -p1",
             "shell": True
-        }, self)]
+        }, self.name)]
 
+        self.regenerate_ymls: list[dict[str, str]] = []
         self.regenerate_steps: list[Step] = []
+
         if "regenerate" in source_properties:
             regenerate_properties = source_properties["regenerate"]
-            for step in regenerate_properties:
-                self.regenerate_steps.append(Step(step, self))
+            for step_yml in regenerate_properties:
+                self.regenerate_ymls.append(step_yml)
 
     def acquire(self):
         self.exec_steps(self.acquire_steps)
@@ -215,6 +201,9 @@ class SourcePackage:
             tty=True
         )
 
+    def kill_build(self):
+        self.podman_container.kill(signal='SIGKILL')
+
     def tidy(self):
         if self.podman_container is not None:
             self.podman_container.kill(signal='SIGKILL')
@@ -256,6 +245,7 @@ class SourcePackage:
                 break
 
         return return_code
+
 
     def regenerate(self):
         self.exec_steps(self.regenerate_steps)

@@ -1,7 +1,7 @@
 'use client'
 
 import fetcher from "@/app/fetcher";
-import { PackageStatusList, PackageStatus } from '@/app/models' 
+import { PackageInfoList, PackageInfo } from '@/app/models' 
 
 import useSWR from 'swr'
 import { HBuildState, HBuildPackageType } from '@/app/models'
@@ -45,15 +45,15 @@ const getChipColorByType = (type: HBuildPackageType): ChipColor => {
 }
 
 export default () => {
-    const [openItemStatus, setOpenItemStatus] = useState(false);
-    const [currentPackage, setCurrentPackage] = useState<PackageStatus>();
+    const [openItem, setOpenItem] = useState(false);
+    const [currentPackage, setCurrentPackage] = useState<PackageInfo>();
 
-    const openPackageModal = (item: PackageStatus) => {
-        setOpenItemStatus(true);
+    const openPackageModal = (item: PackageInfo) => {
+        setOpenItem(true);
         setCurrentPackage(item)
     }
-    const { data, error, isLoading } = useSWR<PackageStatusList>(
-        'http://localhost:8000/api/status',
+    const { data, error, isLoading } = useSWR<PackageInfoList>(
+        'http://localhost:8000/api/packages',
         fetcher
     )
 
@@ -65,7 +65,7 @@ export default () => {
         throw Error('Failed to load package data')
     }
 
-    const postBuild = (item: PackageStatus) => {
+    const postBuild = (item: PackageInfo) => {
         const req = {
             "build_to": item.type == "source" ? "build" : "install",
             "packages": [
@@ -101,34 +101,30 @@ export default () => {
                 marginBottom: 2
             }}
         >
-            {data!.packages.map(packageStatusItem => (
+            {data!.packages.map(packageItem => (
                 <ListItemButton
-                    key={packageStatusItem.name}
-                    onClick={() => openPackageModal(packageStatusItem)}
+                    key={packageItem.name}
+                    onClick={() => openPackageModal(packageItem)}
                 >
                     <Chip 
-                        label={packageStatusItem.status}
-                        color={getChipColorByStatus(packageStatusItem.status)} className="mr-2" 
+                        label={packageItem.type}
+                        color={getChipColorByType(packageItem.type)} className="mr-2"
                     />
-                    <Chip 
-                        label={packageStatusItem.type}
-                        color={getChipColorByType(packageStatusItem.type)} className="mr-2"
-                    />
-                    <ListItemText primary={packageStatusItem.name} />
+                    <ListItemText primary={packageItem.name} />
                 </ListItemButton>
             ))}
         </List>
         <PackageDialog
-            onClose={() => setOpenItemStatus(false)}
+            onClose={() => setOpenItem(false)}
             aria-labelledby="item-status-title"
-            open={openItemStatus}
+            open={openItem}
         >
             <DialogTitle sx={{ m: 0, p: 2 }} id="item-status-title">
                 Package: {currentPackage?.name}
             </DialogTitle>
             <IconButton
                 aria-label="close"
-                onClick={() => setOpenItemStatus(false)}
+                onClick={() => setOpenItem(false)}
                 sx={(theme) => ({
                     position: 'absolute',
                     right: 8,
@@ -149,7 +145,7 @@ export default () => {
                     Build Now
                 </Button>
                 <Button 
-                    onClick={() => setOpenItemStatus(false)}
+                    onClick={() => setOpenItem(false)}
                     color="error"
                 >
                     Cancel Build
