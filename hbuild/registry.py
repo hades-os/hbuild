@@ -44,6 +44,7 @@ class HPackageRegistry():
 
         self.file_configs: list[HPackageConfig] = []
 
+        self.stages: list[Stage] = []
         self.sources: list[SourcePackage] = []
         self.tools: list[ToolPackage] = []
         self.packages: list[Package] = []
@@ -236,10 +237,11 @@ class HPackageRegistry():
                 final_config = deepcopy(package.config)
                 final_config.pkgsrc_yml = stage_yml
 
-                stage = Stage(final_config, package.name)
+                stage = Stage(final_config, package, package.name)
                 self.load_steps(stage)
 
                 package.stages.append(stage)
+                self.stages.append(stage)
 
     def load_sources(self):
         for build_config in self.file_configs:
@@ -252,7 +254,6 @@ class HPackageRegistry():
 
                 source_package = SourcePackage(final_config)
                 self.load_steps(source_package)
-                self.load_stages(source_package)
                 self.sources.append(source_package)
 
     def load_tools(self):

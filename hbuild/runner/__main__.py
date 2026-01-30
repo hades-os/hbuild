@@ -1,3 +1,5 @@
+from queue import Queue
+
 from .runner import HBuildRunner
 
 if __name__ == '__main__':

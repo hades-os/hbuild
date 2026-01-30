@@ -2,9 +2,10 @@ from .config import HPackageConfig
 from .step import Step
 
 class Stage:
-    def __init__(self, config: HPackageConfig, package_name: str):
+    def __init__(self, config: HPackageConfig, package, package_name: str):
         self.config = config
         self.package_name = package_name
+        self.package = package
 
         source_properties = config.pkgsrc_yml
 

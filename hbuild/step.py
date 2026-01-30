@@ -3,10 +3,20 @@ from podman.domain.containers import Container as PodmanContainer
 
 from enum import Enum
 import multiprocessing
-import os
+import pika as mq
 
 from hbuild.config import HPackageConfig
 
+def format_lookup_name(package) -> str:
+    from .source import SourcePackage
+    from .stage import Stage
+
+    if isinstance(package, SourcePackage):
+        return f"source[{package.name}]"
+    elif isinstance(package, Stage):
+        return f"{package.package_name}[{package.name}]"
+    else:
+        return package.name
 
 class StepWorkdirType(Enum):
     CUSTOM = 1
@@ -35,6 +45,12 @@ class Step:
             self.shell = source_properties["shell"]
         else:
             self.shell = False
+
+        self.credentials = mq.PlainCredentials('mq', 'mq')
+        self.connection = mq.BlockingConnection(mq.ConnectionParameters('localhost',
+                                                                   5672,
+                                                                   credentials=self.credentials))
+        self.channel = self.connection.channel()
 
     @dispatch(HPackageConfig, str)
     def __init__(self, config: HPackageConfig, package_name):
@@ -122,10 +138,12 @@ class Step:
     def exec(self, system_prefix, system_targets,  
             sources_dir, builds_dir, source_dir,  
             build_dir, collect_dir, system_root, 
-            container: PodmanContainer, package_object):
+            container: PodmanContainer, package_object, stage_object):
         args, environ, workdir = self.do_substitutions(system_prefix, system_targets,  
                                                        sources_dir, builds_dir, source_dir,  
                                                        build_dir, collect_dir, system_root)
+        lookup_name = format_lookup_name(package_object if stage_object is None else stage_object)
+        stage_name = stage_object.name if stage_object is not None else ""
         if self.shell is True:
             _, mux = container.exec_run(cmd = ['/bin/bash', '-c', *args], environment = environ, workdir = workdir,
                 user='hbuild', tty=True, stream=True)
@@ -135,7 +153,9 @@ class Step:
             
         for chunk in mux:
             decoded_chunk = chunk.decode('utf-8')
-            package_object.console_queue.put(decoded_chunk)
+            self.channel.basic_publish(exchange='',
+                                       routing_key=lookup_name,
+                                       body=f"log:{lookup_name}:{stage_name}:{decoded_chunk}")
 
         return_code = container.inspect()["State"]["ExitCode"]
         package_object.last_return_status = return_code

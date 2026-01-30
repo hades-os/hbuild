@@ -250,7 +250,7 @@ class Package:
             shutil.rmtree(self.package_dir)
         self.prune_system()
     
-    def exec_steps(self, steps: list[Step]) -> int | Exception:
+    def exec_steps(self, steps: list[Step], stage: Stage | None) -> int | Exception:
         return_code: int | Exception = None
         for step in steps:
             return_code = step.exec(
@@ -266,7 +266,8 @@ class Package:
                 '/home/hbuild/system_root',
 
                 self.podman_container,
-                self
+                self,
+                stage
             )
 
             if isinstance(return_code, Exception):
@@ -275,13 +276,13 @@ class Package:
         return return_code
 
     def configure(self) -> int:
-        return self.exec_steps(self.configure_steps)
+        return self.exec_steps(self.configure_steps, None)
 
     def build(self, stage: Stage = None) -> int:
         if stage is None:
-            return self.exec_steps(self.build_steps)
+            return self.exec_steps(self.build_steps, None)
         else:
-            return self.exec_steps(stage.build_steps)
+            return self.exec_steps(stage.build_steps, stage)
 
     def files_size(self):
         total_size = 0

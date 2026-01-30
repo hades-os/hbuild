@@ -33,7 +33,6 @@ class HBuildServer(Routable):
                                                                    credentials=self.credentials))
         self.channel = self.connection.channel()
         self.channel.queue_declare(queue = 'message_queue')
-        self.channel.start_consuming()
 
     def lookup(self, name: str) -> Package | ToolPackage | SourcePackage | Stage | None:
         source_try = self.registry.find_source(name)

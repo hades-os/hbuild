@@ -8,4 +8,6 @@ for dir in ${dirs[@]}; do
 done
 
 cp "build_files/cross_file.txt" "sources/cross_file.txt"
+
+podman kill --all
 podman rm -f --all

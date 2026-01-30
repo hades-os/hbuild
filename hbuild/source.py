@@ -238,7 +238,8 @@ class SourcePackage:
                 '/home/hbuild/system_root',
 
                 self.podman_container,
-                self
+                self,
+                None
             )
 
             if isinstance(return_code, Exception):

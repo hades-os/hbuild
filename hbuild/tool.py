@@ -240,7 +240,7 @@ class ToolPackage:
             shutil.rmtree(self.tool_dir)
         self.prune_prefix()
 
-    def exec_steps(self, steps: list[Step]) -> int | Exception:
+    def exec_steps(self, steps: list[Step], stage: Stage | None) -> int | Exception:
         return_code: int | Exception = None
         for step in steps:
             step.exec(
@@ -256,7 +256,8 @@ class ToolPackage:
                 '/home/hbuild/system_root',
 
                 self.podman_container,
-                self
+                self,
+                stage
             )
 
             if isinstance(return_code, Exception):
@@ -268,19 +269,19 @@ class ToolPackage:
         self.podman_container.kill(signal='SIGKILL')
 
     def configure(self):
-        self.exec_steps(self.configure_steps)
+        self.exec_steps(self.configure_steps, None)
 
     def compile(self, stage: Stage = None):
         if stage is None:
-            self.exec_steps(self.compile_steps)
+            self.exec_steps(self.compile_steps, None)
         else:
-            self.exec_steps(stage.compile_steps)
+            self.exec_steps(stage.compile_steps, stage)
 
     def install(self, stage: Stage = None):
         if stage is None:
-            self.exec_steps(self.install_steps)
+            self.exec_steps(self.install_steps, None)
         else:            
-            self.exec_steps(stage.install_steps)
+            self.exec_steps(stage.install_steps, stage)
 
     def copy_tool(self):
         subprocess.run(['rsync', '-aq',  f"{self.tool_dir}/", f"{self.system_prefix}"])

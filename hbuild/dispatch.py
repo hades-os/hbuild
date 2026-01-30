@@ -223,6 +223,12 @@ class HBuildDispatch():
             self.channel.basic_publish(exchange='',
                                        routing_key='runners',
                                        body=f"execute:{','.join(build_order)}")
+        elif operation == "log":
+            package_namels    = objects[1]
+            stage_name = objects[2]
+            log = objects[3]
+
+            print(package_name, stage_name)
 
     def run_server(self):
         credentials = mq.PlainCredentials('mq', 'mq')
@@ -230,7 +236,10 @@ class HBuildDispatch():
                                                                    5672,
                                                                    credentials=credentials))
         self.channel = connection.channel()
-
         self.channel.queue_declare(queue = 'dispatch')
+        for package in self.registry.packages + self.registry.tools + self.registry.sources:
+            self.channel.queue_declare(queue=format_lookup_name(package))
+            self.channel.basic_consume(queue=format_lookup_name(package), on_message_callback=self.consume, auto_ack=True)
+
         self.channel.basic_consume(queue = 'dispatch', on_message_callback = self.consume, auto_ack=True)
         self.channel.start_consuming()

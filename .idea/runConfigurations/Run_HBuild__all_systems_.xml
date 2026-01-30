@@ -1,0 +1,8 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Run HBuild (all systems)" type="CompoundRunConfigurationType">
+    <toRun name="Run HBuild Server" type="Python.FastAPI" />
+    <toRun name="Run HBuild Dispatcher" type="PythonConfigurationType" />
+    <toRun name="Run HBuild Runner" type="PythonConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>

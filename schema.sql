@@ -1,0 +1,7 @@
+CREATE TABLE `sql`.logs(
+    id int PRIMARY KEY,
+    package VARCHAR(64) NOT NULL,
+    stage VARCHAR(32) NULL,
+    log MEDIUMTEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)

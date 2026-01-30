@@ -1,4 +1,8 @@
+import queue
 import re
+import time
+from queue import Queue
+from threading import Thread
 
 from hbuild.registry import HPackageRegistry
 
@@ -11,13 +15,22 @@ from hbuild.package import Package
 
 import os
 
+def format_lookup_name(package: SourcePackage | ToolPackage | Package | Stage) -> str:
+    if isinstance(package, SourcePackage):
+        return f"source[{package.name}]"
+    elif isinstance(package, Stage):
+        return f"{package.package_name}[{package.name}]"
+    else:
+        return package.name
+
 class HBuildJob():
-    def __init__(self, requested_packages: list[Package | ToolPackage | SourcePackage]):
+    def __init__(self, requested_packages: list[Package | ToolPackage | SourcePackage | Stage]):
         self.requested_packages = requested_packages
 
 class HBuildRunner():
     def __init__(self):
         self.registry = HPackageRegistry()
+        self.queue = Queue()
 
         self.credentials = mq.PlainCredentials('mq', 'mq')
         self.connection = mq.BlockingConnection(mq.ConnectionParameters('localhost',
@@ -26,6 +39,9 @@ class HBuildRunner():
         self.channel = self.connection.channel()
         self.channel.queue_declare(queue = 'runners')
         self.channel.basic_consume(queue = 'runners', on_message_callback = self.consume, auto_ack=True)
+
+        self.thread = Thread(target = self.execute_jobs)
+        self.thread.start()
 
     def lookup(self, name: str) -> Package | ToolPackage | SourcePackage | Stage | None:
         if (matches := re.match('source\\[(.+)]', name)) is not None:
@@ -55,8 +71,20 @@ class HBuildRunner():
         if operation == "execute":
             requested_packages = objects[1].split(",")
             resolved_packages = [self.lookup(name) for name in requested_packages]
+            self.queue.put(HBuildJob(resolved_packages))
 
-
+    def execute_jobs(self):
+        while True:
+            try:
+                next_job: HBuildJob = self.queue.get()
+                for resolved_package in next_job.requested_packages:
+                    if isinstance(resolved_package, Stage):
+                        self.build_package(resolved_package.package, resolved_package.name)
+                    else:
+                        self.build_package(resolved_package, None)
+            except queue.Empty:
+                pass
+            time.sleep(1)
 
     def make_dir(self, package: Package | ToolPackage | SourcePackage):
         package.make_dirs()
@@ -159,63 +187,54 @@ class HBuildRunner():
         package.copy_system()
         os.sync()
 
-        package.make_deb({dep: self.pkg_map[dep].version for dep in package.pkg_deps()})
+        package.make_deb({dep: self.lookup(dep).version for dep in package.pkg_deps()})
         os.sync()
 
     def build_package(self, package: Package | ToolPackage | SourcePackage, stage_name: str):
+        self.make_dir(package)
+        self.make_container(package)
+
         if isinstance(package, SourcePackage):
-            self.build_source(package)
+            return self.build_source(package)
         elif isinstance(package, ToolPackage):
-            self.build_tool(package, stage_name)
+            return self.build_tool(package, stage_name)
         elif isinstance(package, Package):
-            self.build_system(package, stage_name)
+            values = self.build_system(package, stage_name)
             self.build_deb(package)
 
-    def build_packages(self, packages: list[Package | ToolPackage | SourcePackage], stage_name: str):
-        for package in packages:
-            self.make_dir(package)
-            self.make_container(package)
-            self.build_package(package, stage_name)
+            return values
+        raise Exception("Passed invalid object to build_package() !")
 
-    def install_packages(self, packages: list[Package | ToolPackage | SourcePackage], stage_name: str):
-        for package in packages:
-            if isinstance(package, Package):
-                if stage_name is None:
-                    self.make_dir(package)
-                    self.make_container(package)
-                    self.build_system(package, None)
-                    self.build_deb(package)
-                else:
-                    self.make_dir(package)
-                    self.make_container(package)
-                    self.build_system(package, stage_name)
-                    self.build_deb(package)
-                package.copy_system()
-            elif isinstance(package, ToolPackage):
-                if stage_name is None:
-                    self.make_dir(package)
-                    self.make_container(package)
-                    self.build_tool(package, None)
-                else:
-                    self.make_dir(package)
-                    self.make_container(package)
-                    self.build_tool(package, stage_name)
-                package.copy_tool()
+    def install_package(self, package: Package | ToolPackage | SourcePackage, stage_name: str):
+        if isinstance(package, Package):
+            if stage_name is None:
+                self.make_dir(package)
+                self.make_container(package)
+                self.build_system(package, None)
+                self.build_deb(package)
             else:
                 self.make_dir(package)
                 self.make_container(package)
-                self.build_source(package)
+                self.build_system(package, stage_name)
+                self.build_deb(package)
+            package.copy_system()
+        elif isinstance(package, ToolPackage):
+            if stage_name is None:
+                self.make_dir(package)
+                self.make_container(package)
+                self.build_tool(package, None)
+            else:
+                self.make_dir(package)
+                self.make_container(package)
+                self.build_tool(package, stage_name)
+            package.copy_tool()
+        else:
+            self.make_dir(package)
+            self.make_container(package)
+            self.build_source(package)
 
-    def clean_dir(self, package: Package | ToolPackage | SourcePackage):
+    def clean_package(self, package: Package | ToolPackage | SourcePackage):
         package.clean_dirs()
-
-    def clean_packages(self, packages: list[Package | ToolPackage | SourcePackage]):
-        for package in packages:
-            self.clean_dir(package)
-
-    def debianize_packages(self, packages: list[Package]):
-        for package in packages:
-            self.build_deb(package)
 
     def kill_build(self, package: Package | ToolPackage | SourcePackage):
         package.kill_build()
