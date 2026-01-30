@@ -82,7 +82,7 @@ class HBuildServer(Routable):
 
     @get('/api/log/{name}')
     def get_log(self, name: str):
-        if name not in self.registry.package_names + self.registry.tool_names + self.registry.source_names:
+        if name not in self.registry.package_names + self.registry.tool_names + self.registry.source_names + self.registry.stage_names:
             raise HTTPException(status_code=404, detail=f"{name} is not a system, tool, or source package")
 
         def streamer():
@@ -122,7 +122,7 @@ class HBuildServer(Routable):
         for package in req.packages:
             if package.name in to_build:
                 raise HTTPException(status_code=400, detail=f"Duplicate package {package.name} in build order")
-            if package.name not in self.registry.package_names + self.registry.tool_names + self.registry.source_names:
+            if package.name not in self.registry.package_names + self.registry.tool_names + self.registry.source_names + self.registry.stage_names:
                 raise HTTPException(status_code=404, detail=f"Package {package.name} does not exist or is not available.")
             if package.stage:
                 to_build.append(f"{package.name}[{package.stage}]")

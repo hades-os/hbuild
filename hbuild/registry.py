@@ -54,6 +54,18 @@ class HPackageRegistry():
         self.load_packages()
 
     @property
+    def stage_names(self):
+        names = []
+        for package in self.packages:
+            stage_names = [f"{package.name}[{k.name}]" for k in package.stages]
+            names = [*names, *stage_names]
+        for tool in self.tools:
+            stage_names = [f"{tool.name}[{k.name}]" for k in tool.stages]
+            names = [*names, *stage_names]
+
+        return names
+
+    @property
     def package_names(self):
         names = []
         for package in self.packages:
