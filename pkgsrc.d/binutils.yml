@@ -3,7 +3,7 @@
   subdir: 'ports'
   version: '2.45'
 
-  git: 'https://github.com/bminor/binutils-gdb'
+  git: 'https://sourceware.org/git/binutils-gdb.git'
   tag: 'binutils-2_45'
 
 tools:
