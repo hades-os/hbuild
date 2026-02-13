@@ -2,47 +2,43 @@
 
 import { Suspense, use, useEffect, useState } from 'react'
 
-import { ServerSentEvent } from '@/app/models'
-import { TextField } from '@mui/material'
+import { LogEvent, LogEventStream } from '@/app/models'
+import { TextField, Typography } from '@mui/material'
+import useSWR from 'swr'
+import fetcher from "@/app/fetcher";
 
 const ConsoleOut = ({ name }: { name: string }): React.ReactNode => {
-    const [ logMessages, setLogMessages ] = useState<string[]>([])
-    useEffect(() => {
-        const eventSource = new EventSource(`http://localhost:8000/api/log/${name}`)
-        eventSource.addEventListener("log", (event) => {
-            if (event.data) {
-                setLogMessages([...logMessages, event.data])
-
-
-                console.log(logMessages)
-                console.log( event.data)
-            }
-        })
-
-        eventSource.onerror = () => {
-            console.error("Unable to connect to build server");
-            eventSource.close()
-        }
-
-        return () => {
-            eventSource.close()
-        }
-    }, [])
+    const { data, error, isLoading } = useSWR<LogEventStream>(`http://localhost:8000/api/log/${name}`, fetcher, { 
+        refreshInterval: 1000
+    })
 
     return (
         <Suspense fallback={<p>Awaiting stream from build server...</p>}>
-            <TextField
-                fullWidth
-                multiline
-                disabled
-                sx={{
-                    fontFamily: 'monospace'
-                }}
+            {isLoading ? 
+                <Typography>
+                    Loading log stream, please wait...
+                </Typography> :
+              error ?
+                <Typography color="error">
+                    Failed to load log stream!
+                </Typography>
+                :
+                <TextField
+                    fullWidth
+                    multiline
+                    disabled
+                    sx={{
+                        fontFamily: 'monospace',  
+                        backgroundColor: '#121212',
+                        input: {
+                            color: 'white'
+                        }
+                    }}                    
 
-                label='Console Output'
-                variant="standard"
-                defaultValue={logMessages.join("\n")}
-            />
+                    label='Console Output'
+                    variant="standard"
+                    defaultValue={data!.logs.map(event => event.log).join("")}
+            />}
         </Suspense>
     )
 }

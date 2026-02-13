@@ -1,6 +1,8 @@
+import json
 import re
 from enum import Enum
 
+import pymysql
 import rustworkx as rx
 from rustworkx import PyDiGraph
 from rustworkx.visualization.graphviz import graphviz_draw
@@ -8,6 +10,7 @@ from rustworkx.visualization.graphviz import graphviz_draw
 from .package import Package
 from .registry import HPackageRegistry
 from .source import SourcePackage
+from .sql import HBuildLog
 from .stage import Stage
 from .tool import ToolPackage
 
@@ -47,6 +50,12 @@ class HBuildDispatch():
         self.registry.load_sources()
         self.registry.load_tools()
         self.registry.load_packages()
+
+        self.sql_conn = pymysql.connect(host='localhost',
+                                     user='root',
+                                     password='sql',
+                                     database='sql',
+                                     cursorclass=pymysql.cursors.DictCursor)
 
         self.node_indices: dict[int | str, HPackageNode] = {}
         self.graph = rx.PyDiGraph()
@@ -224,11 +233,36 @@ class HBuildDispatch():
                                        routing_key='runners',
                                        body=f"execute:{','.join(build_order)}")
         elif operation == "log":
-            package_namels    = objects[1]
+            package_name = objects[1]
             stage_name = objects[2]
             log = objects[3]
 
-            print(package_name, stage_name)
+            HBuildLog.insert_log(self.sql_conn, package_name, stage_name, log)
+        elif operation == "graph":
+            edge_list = self.graph.edge_list()
+            result_nodes = []
+            result_edges = []
+            for source_index, dest_index in edge_list:
+                source = self.graph[source_index]
+                dest = self.graph[dest_index]
+
+                formatted_source = format_lookup_name(source.package)
+                formatted_dest = format_lookup_name(dest.package)
+                result_edges.append({
+                    "source": formatted_source,
+                    "dest": formatted_dest,
+                })
+                if formatted_source not in result_nodes:
+                    result_nodes.append(formatted_source)
+                if formatted_dest not in result_nodes:
+                    result_nodes.append(formatted_dest)
+            self.channel.basic_publish(exchange='',
+                                       routing_key='message_queue',
+                                       body=f"result_graph:{json.dumps({
+                                           "nodes": result_nodes,
+                                           "edges": result_edges
+                                       })}")
+
 
     def run_server(self):
         credentials = mq.PlainCredentials('mq', 'mq')

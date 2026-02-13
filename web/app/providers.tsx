@@ -4,11 +4,21 @@ import { AppRouterCacheProvider } from '@mui/material-nextjs/v15-appRouter';
 import * as React from "react";
 
 import { useRouter } from "next/navigation";
-import { CssBaseline } from '@mui/material';
+import { createTheme, CssBaseline, ThemeProvider } from '@mui/material';
 
 export interface ProvidersProps {
   children: React.ReactNode;
 }
+
+const theme = createTheme({
+  typography: {
+    fontFamily: 'var(--font-roboto)',
+  },
+  cssVariables: true,
+  palette: {
+    mode: 'dark'
+  }
+});
 
 export function Providers({ children }: ProvidersProps) {
 
@@ -16,8 +26,10 @@ export function Providers({ children }: ProvidersProps) {
     <AppRouterCacheProvider options={{
         enableCssLayer: true
     }}>
-        <CssBaseline />
-        {children}
+        <ThemeProvider theme={theme}>
+            <CssBaseline />
+            {children}
+        </ThemeProvider>
     </AppRouterCacheProvider>
   );
 }

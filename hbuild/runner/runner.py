@@ -1,14 +1,18 @@
 import queue
+import random
 import re
 import time
 from queue import Queue
 from threading import Thread
+
+import pymysql
 
 from hbuild.registry import HPackageRegistry
 
 import pika as mq
 
 from hbuild.source import SourcePackage
+from hbuild.sql import HBuildLog
 from hbuild.stage import Stage
 from hbuild.tool import ToolPackage
 from hbuild.package import Package
@@ -31,6 +35,7 @@ class HBuildRunner():
     def __init__(self):
         self.registry = HPackageRegistry()
         self.queue = Queue()
+        self.name = f"runner-{random.randint(0, 1000)}"
 
         self.credentials = mq.PlainCredentials('mq', 'mq')
         self.connection = mq.BlockingConnection(mq.ConnectionParameters('localhost',
@@ -39,6 +44,12 @@ class HBuildRunner():
         self.channel = self.connection.channel()
         self.channel.queue_declare(queue = 'runners')
         self.channel.basic_consume(queue = 'runners', on_message_callback = self.consume, auto_ack=True)
+
+        self.sql_conn = pymysql.connect(host='localhost',
+                                     user='root',
+                                     password='sql',
+                                     database='sql',
+                                     cursorclass=pymysql.cursors.DictCursor)
 
         self.thread = Thread(target = self.execute_jobs)
         self.thread.start()
@@ -77,6 +88,7 @@ class HBuildRunner():
         while True:
             try:
                 next_job: HBuildJob = self.queue.get()
+                HBuildLog.insert_history(self.sql_conn, self.name, [format_lookup_name(p) for p in next_job.requested_packages])
                 for resolved_package in next_job.requested_packages:
                     if isinstance(resolved_package, Stage):
                         self.build_package(resolved_package.package, resolved_package.name)
