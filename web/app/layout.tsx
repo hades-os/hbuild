@@ -1,5 +1,7 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+
 import "@/styles/globals.css";
 import clsx from "clsx";
 
@@ -7,7 +9,6 @@ import { Providers } from "./providers";
 
 import { fontSans } from "@/config/fonts";
 import fetcher from "@/app/fetcher";
-import { PackageStatusList } from '@/app/models' 
 
 import useSWR from 'swr'
 import { createTheme, styled } from '@mui/material/styles';
@@ -24,6 +25,9 @@ const theme = createTheme({
     fontFamily: 'var(--font-roboto)',
   },
   cssVariables: true,
+  palette: {
+    mode: 'dark'
+  }
 });
 
 const roboto = Roboto({
@@ -100,6 +104,8 @@ export default ({ children }
     const handleDrawerOpen = () => setOpen(true);
     const handleDrawerClose = () => setOpen(false);
 
+    const router = useRouter()
+
     return (
         <html suppressHydrationWarning lang="en" className={roboto.variable}>
         <head />
@@ -158,12 +164,16 @@ export default ({ children }
                     </DrawerHeader>
                     <Divider />
                     <List>
-                        {['Home', 'Build History', 'Dependency Graph'].map((text) => (
+                        {Object.entries({
+                            'Home': '/', 
+                            'Build History': '/history', 
+                            'Dependency Graph': '/graph'
+                        }).map(([text, url]) => (
                             <ListItem
                                 key={text} 
                                 disablePadding
                             >
-                                <ListItemButton>
+                                <ListItemButton onClick={() => router.push(url)}>
                                     <ListItemText primary={text} />
                                 </ListItemButton>
                             </ListItem>
@@ -182,7 +192,7 @@ export default ({ children }
                         </Collapse>
                     </List>
                 </Drawer>
-                <Main open={open}>
+                <Main open={open} className="flex flex-col w-full h-full">
                     <DrawerHeader />
                     {children}
                 </Main>

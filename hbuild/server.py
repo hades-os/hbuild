@@ -1,18 +1,20 @@
+import json
 import re
 
-from classy_fastapi import Routable, get, delete, post
+import pika as mq
+import pymysql
+from classy_fastapi import Routable, get, post
 from fastapi import HTTPException, BackgroundTasks, FastAPI
-from sse_starlette import EventSourceResponse, ServerSentEvent
 from starlette.middleware.cors import CORSMiddleware
 
-from .models import ResolveOrder, BuildOrder
+from .models import BuildOrder
+from .package import Package
 from .registry import HPackageRegistry
 from .source import SourcePackage
+from .sql import HBuildLog
 from .stage import Stage
 from .tool import ToolPackage
-from .package import Package
 
-import pika as mq
 
 def format_lookup_name(package: SourcePackage | ToolPackage | Package | Stage) -> str:
     if isinstance(package, SourcePackage):
@@ -33,6 +35,12 @@ class HBuildServer(Routable):
                                                                    credentials=self.credentials))
         self.channel = self.connection.channel()
         self.channel.queue_declare(queue = 'message_queue')
+
+        self.sql_conn = pymysql.connect(host='localhost',
+                                     user='root',
+                                     password='sql',
+                                     database='sql',
+                                     cursorclass=pymysql.cursors.DictCursor)
 
     def lookup(self, name: str) -> Package | ToolPackage | SourcePackage | Stage | None:
         source_try = self.registry.find_source(name)
@@ -79,31 +87,49 @@ class HBuildServer(Routable):
             "packages": package_list
         }
 
+    @get('/api/graph')
+    def get_graph(self):
+        self.channel.basic_publish(exchange='',
+                                    routing_key='dispatch',
+                                   body='graph')
+
+        graph_json = None
+        for _, _, raw_body in self.channel.consume('message_queue', auto_ack=True):
+            body = raw_body.decode("utf-8")
+            objects = body.split(":", maxsplit=1)
+
+            operation = objects[0]
+            if operation == "result_graph":
+                self.channel.cancel()
+
+                graph_json = objects[1]
+                break
+
+        return json.loads(graph_json)
+
+    @get('/api/history')
+    def get_history(self):
+        history = HBuildLog.select_history(self.sql_conn)
+        return {
+            "past_jobs": [{
+                "id": item["id"],
+                "runner": item["runner"],
+                "packages": item["packages"].split(","),
+                "created_at": item["created_at"].strftime("%s"),
+            } for item in history]
+        }
+
     @get('/api/log/{name}')
     def get_log(self, name: str):
         if name not in self.registry.package_names + self.registry.tool_names + self.registry.source_names + self.registry.stage_names:
             raise HTTPException(status_code=404, detail=f"{name} is not a system, tool, or source package")
 
-        def streamer():
-            package: Package | SourcePackage | ToolPackage = self.lookup(name)
-            count = 0
-            while True:
-                try:
-                    # TODO: setup per-package RabbitMQ logs
-                    data = ""
-                except:
-                    continue
+        package: Package | SourcePackage | ToolPackage = self.lookup(name)
+        logs = HBuildLog.select_logs(self.sql_conn, format_lookup_name(package), None)
 
-                yield ServerSentEvent(
-                    data=data,
-                    id=f"log-{count}",
-                    retry=5000,
-                    event="log"
-                )
-
-                count += 1
-
-        return EventSourceResponse(streamer(), ping=2)
+        return {
+            "logs": logs
+        }
 
     @get('/api/status/{name}')
     def get_status(self, name: str):

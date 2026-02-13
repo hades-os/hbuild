@@ -9,6 +9,16 @@ type StageStatus = {
     status: HBuildState
 }
 
+type PackageGraphEdge = {
+    source: string;
+    dest: string;
+}
+
+type PackageGraph = {
+    nodes: string[];
+    edges: PackageGraphEdge[]
+}
+
 type PackageInfo = {
     name: string,
     type: HBuildPackageType,
@@ -19,18 +29,42 @@ type PackageInfoList = {
     packages: PackageInfo[]
 }
 
-type ServerSentEvent = {
-    id: string;
-    event: string;
-    data: string;
-    retry?: number;
+type PackageHistoryEntry = {
+    id: number,
+    runner: string,
+    packages: string[],
+    created_at: number
+}
+
+type PackageHistoryList = {
+    past_jobs: PackageHistoryEntry[]
+}
+
+type LogEvent = {
+    id: number;
+    package: string;
+    stage: string;
+    log: string;
+    created_at: string;
+}
+
+type LogEventStream = {
+    logs: LogEvent[]
 }
 
 export type {
     PackageInfoList,
     PackageInfo,
+
+    PackageHistoryList,
+    PackageHistoryEntry
+
     HBuildState,
     HBuildPackageType,
 
-    ServerSentEvent
+    LogEvent,
+    LogEventStream,
+
+    PackageGraphEdge,
+    PackageGraph
 }

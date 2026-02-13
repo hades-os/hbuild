@@ -11,3 +11,6 @@ cp "build_files/cross_file.txt" "sources/cross_file.txt"
 
 podman kill --all
 podman rm -f --all
+
+podman-compose down
+podman-compose up --detach
