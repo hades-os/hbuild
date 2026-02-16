@@ -1,3 +1,4 @@
+from kombu import Connection, Producer, Exchange
 from multipledispatch import dispatch
 from podman.domain.containers import Container as PodmanContainer
 
@@ -46,11 +47,7 @@ class Step:
         else:
             self.shell = False
 
-        self.credentials = mq.PlainCredentials('mq', 'mq')
-        self.connection = mq.BlockingConnection(mq.ConnectionParameters('localhost',
-                                                                   5672,
-                                                                   credentials=self.credentials))
-        self.channel = self.connection.channel()
+        self.rabbit_url = "amqp://mq:mq@localhost:5672"
 
     @dispatch(HPackageConfig, str)
     def __init__(self, config: HPackageConfig, package_name):
@@ -153,9 +150,14 @@ class Step:
             
         for chunk in mux:
             decoded_chunk = chunk.decode('utf-8')
-            self.channel.basic_publish(exchange='',
-                                       routing_key=lookup_name,
-                                       body=f"log:{lookup_name}:{stage_name}:{decoded_chunk}")
+            with Connection(self.rabbit_url) as conn:
+                with conn.channel() as channel:
+                    exchange = Exchange(lookup_name, type="direct")
+                    producer = Producer(channel)
+                    producer.publish(f"log:{lookup_name}:{stage_name}:{decoded_chunk}",
+                                     exchange=exchange,
+                                     routing_key=lookup_name,
+                                     declare=[exchange])
 
         return_code = container.inspect()["State"]["ExitCode"]
         package_object.last_return_status = return_code

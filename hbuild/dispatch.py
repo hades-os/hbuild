@@ -16,6 +16,12 @@ from .tool import ToolPackage
 
 import pika as mq
 
+from kombu import Connection, Exchange, Queue, Producer
+import kombu
+
+from .worker import RobustWorker
+
+
 def format_lookup_name(package: SourcePackage | ToolPackage | Package | Stage) -> str:
     if isinstance(package, SourcePackage):
         return f"source[{package.name}]"
@@ -56,6 +62,7 @@ class HBuildDispatch():
                                      password='sql',
                                      database='sql',
                                      cursorclass=pymysql.cursors.DictCursor)
+        self.rabbit_url = "amqp://mq:mq@localhost:5672"
 
         self.node_indices: dict[int | str, HPackageNode] = {}
         self.graph = rx.PyDiGraph()
@@ -218,7 +225,7 @@ class HBuildDispatch():
 
         return install_order
 
-    def consume(self, channel, method, properties, raw_body):
+    def consume(self, raw_body):
         body = raw_body.decode("utf-8")
         objects = body.split(":")
         operation = objects[0]
@@ -256,24 +263,26 @@ class HBuildDispatch():
                     result_nodes.append(formatted_source)
                 if formatted_dest not in result_nodes:
                     result_nodes.append(formatted_dest)
-            self.channel.basic_publish(exchange='',
-                                       routing_key='message_queue',
-                                       body=f"result_graph:{json.dumps({
-                                           "nodes": result_nodes,
-                                           "edges": result_edges
-                                       })}")
+
+            exchange = Exchange("hbuild-exchange", type="direct")
+            with Connection(self.rabbit_url) as conn:
+                with conn.channel() as channel:
+                    producer = Producer(channel)
+                    producer.publish(f"result_graph:{json.dumps({
+                                                   "nodes": result_nodes,
+                                                   "edges": result_edges
+                                               })}",
+                                     exchange=exchange,
+                                     routing_key="message_queue",
+                                     declare=[exchange])
 
 
     def run_server(self):
-        credentials = mq.PlainCredentials('mq', 'mq')
-        connection = mq.BlockingConnection(mq.ConnectionParameters('localhost',
-                                                                   5672,
-                                                                   credentials=credentials))
-        self.channel = connection.channel()
-        self.channel.queue_declare(queue = 'dispatch')
+        exchange = Exchange("hbuild-exchange", type="direct")
+        queues: list[Queue] = [Queue("dispatch", exchange, routing_key="dispatch")]
         for package in self.registry.packages + self.registry.tools + self.registry.sources:
-            self.channel.queue_declare(queue=format_lookup_name(package))
-            self.channel.basic_consume(queue=format_lookup_name(package), on_message_callback=self.consume, auto_ack=True)
+            queues.append(Queue(format_lookup_name(package), exchange, routing_key="dispatch"))
 
-        self.channel.basic_consume(queue = 'dispatch', on_message_callback = self.consume, auto_ack=True)
-        self.channel.start_consuming()
+        with Connection(self.rabbit_url) as conn:
+            worker = RobustWorker(conn, queues, self.consume)
+            worker.run()

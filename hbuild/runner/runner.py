@@ -5,7 +5,9 @@ import time
 from queue import Queue
 from threading import Thread
 
+import kombu
 import pymysql
+from kombu import Exchange, Connection
 
 from hbuild.registry import HPackageRegistry
 
@@ -18,6 +20,9 @@ from hbuild.tool import ToolPackage
 from hbuild.package import Package
 
 import os
+
+from hbuild.worker import RobustWorker
+
 
 def format_lookup_name(package: SourcePackage | ToolPackage | Package | Stage) -> str:
     if isinstance(package, SourcePackage):
@@ -37,13 +42,13 @@ class HBuildRunner():
         self.queue = Queue()
         self.name = f"runner-{random.randint(0, 1000)}"
 
-        self.credentials = mq.PlainCredentials('mq', 'mq')
-        self.connection = mq.BlockingConnection(mq.ConnectionParameters('localhost',
-                                                                   5672,
-                                                                   credentials=self.credentials))
-        self.channel = self.connection.channel()
-        self.channel.queue_declare(queue = 'runners')
-        self.channel.basic_consume(queue = 'runners', on_message_callback = self.consume, auto_ack=True)
+        self.rabbit_url = "amqp://mq:mq@localhost:5672"
+
+        exchange = Exchange("hbuild-exchange", type="direct")
+        queues: list[kombu.Queue] = [kombu.Queue("runners", exchange, routing_key="runners")]
+        with Connection(self.rabbit_url) as conn:
+            worker = RobustWorker(conn, queues, self.consume)
+            worker.run()
 
         self.sql_conn = pymysql.connect(host='localhost',
                                      user='root',
@@ -75,7 +80,7 @@ class HBuildRunner():
     def run_server(self):
         self.channel.start_consuming()
 
-    def consume(self, channel, method, properties, raw_body):
+    def consume(self, raw_body):
         body = raw_body.decode("utf-8")
         objects = body.split(":")
         operation =  objects[0]

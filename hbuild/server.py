@@ -1,10 +1,12 @@
 import json
 import re
+import time
 
 import pika as mq
 import pymysql
 from classy_fastapi import Routable, get, post
 from fastapi import HTTPException, BackgroundTasks, FastAPI
+from kombu import Exchange, Queue, Connection, Producer, Consumer
 from starlette.middleware.cors import CORSMiddleware
 
 from .models import BuildOrder
@@ -29,12 +31,9 @@ class HBuildServer(Routable):
         super().__init__()
         self.registry = HPackageRegistry()
 
-        self.credentials = mq.PlainCredentials('mq', 'mq')
-        self.connection = mq.BlockingConnection(mq.ConnectionParameters('localhost',
-                                                                   5672,
-                                                                   credentials=self.credentials))
-        self.channel = self.connection.channel()
-        self.channel.queue_declare(queue = 'message_queue')
+        self.rabbit_url = "amqp://mq:mq@localhost:5672"
+        self.exchange = Exchange("hbuild-exchange", type="direct")
+        self.queue = Queue("message_queue", exchange=self.exchange, routing_key="dispatch")
 
         self.sql_conn = pymysql.connect(host='localhost',
                                      user='root',
@@ -89,21 +88,38 @@ class HBuildServer(Routable):
 
     @get('/api/graph')
     def get_graph(self):
-        self.channel.basic_publish(exchange='',
-                                    routing_key='dispatch',
-                                   body='graph')
+        with Connection(self.rabbit_url) as conn:
+            with conn.channel() as channel:
+                producer = Producer(channel)
+                producer.publish("graph",
+                                 exchange=self.exchange,
+                                 routing_key="message_queue",
+                                 declare=[self.exchange])
 
         graph_json = None
-        for _, _, raw_body in self.channel.consume('message_queue', auto_ack=True):
+        graph_is_ready = False
+
+        consumer = None
+
+        def graph_callback(raw_body):
+            nonlocal graph_is_ready, graph_json, consumer
+
             body = raw_body.decode("utf-8")
             objects = body.split(":", maxsplit=1)
 
             operation = objects[0]
             if operation == "result_graph":
-                self.channel.cancel()
-
                 graph_json = objects[1]
-                break
+                graph_is_ready = True
+
+                consumer.close()
+        with Connection(self.rabbit_url) as conn:
+            with conn.channel() as channel:
+                consumer = Consumer(channel)
+                consumer.register_callback(graph_callback)
+
+        while not graph_is_ready:
+            time.sleep(1)
 
         return json.loads(graph_json)
 
@@ -155,9 +171,13 @@ class HBuildServer(Routable):
                 lookup_name = format_lookup_name(self.lookup(package.name))
                 to_build.append(lookup_name)
 
-        self.channel.basic_publish(exchange='',
-                                   routing_key='dispatch',
-                                   body=f"build:{','.join(to_build)}")
+        with Connection(self.rabbit_url) as conn:
+            with conn.channel() as channel:
+                producer = Producer(channel)
+                producer.publish(f"build:{','.join(to_build)}",
+                                 exchange=self.exchange,
+                                 routing_key="message_queue",
+                                 declare=[self.exchange])
 
         #def execute_build():
         #    self.show_deps(to_build, req.build_to, dep_graph)
