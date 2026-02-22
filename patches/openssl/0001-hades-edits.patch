@@ -1,0 +1,137 @@
+diff --git a/Configurations/10-main.conf b/Configurations/10-main.conf
+index f815a09b23..a4ab0ef06d 100644
+--- a/Configurations/10-main.conf
++++ b/Configurations/10-main.conf
+@@ -925,6 +925,31 @@ my %targets = (
+         ranlib           => "true",
+     },
+ 
++#### Hades
++    "x86_64-hades" => {
++        inherit_from => [ "BASE_unix" ],
++        CFLAGS          => picker(default   => "-Wall",
++                        debug       => "-O0 -g",
++                        release     => "-O3"),
++        CXXFLAGS        => picker(default   => "-Wall",
++                        debug       => "-O0 -g",
++                        release     => "-O3"),
++        cxxflags        => add("-std=c++11"),
++        lib_cppflags        => combine("-DOPENSSL_USE_NODELETE", "-DL_ENDIAN"),
++        bn_ops          => "SIXTY_FOUR_BIT_LONG RC4_CHAR",
++        thread_scheme       => "pthreads",
++        dso_scheme      => "dlfcn",
++        shared_target       => "linux-shared",
++        shared_cflag        => "-fPIC",
++        shared_ldflag       => sub { $disabled{pinshared} ? () : "-Wl,-znodelete" },
++        shared_extension    => ".so.\$(SHLIB_VERSION_NUMBER)",
++
++        perlasm_scheme => "elf",
++
++        CC => "x86_64-hades-gcc",
++        CXX => "x86_64-hades-g++"
++    },
++
+ #### *BSD
+     "BSD-generic32" => {
+         # As for thread cflag. Idea is to maintain "collective" set of
+diff --git a/Configure b/Configure
+index 78cc15d184..2d3fb3e8cf 100755
+--- a/Configure
++++ b/Configure
+@@ -1549,20 +1549,7 @@ unless ($disabled{"crypto-mdebug-backtrace"})
+ unless ($disabled{afalgeng}) {
+     $config{afalgeng}="";
+     if (grep { $_ eq 'afalgeng' } @{$target{enable}}) {
+-        my $minver = 4*10000 + 1*100 + 0;
+-        if ($config{CROSS_COMPILE} eq "") {
+-            my $verstr = `uname -r`;
+-            my ($ma, $mi1, $mi2) = split("\\.", $verstr);
+-            ($mi2) = $mi2 =~ /(\d+)/;
+-            my $ver = $ma*10000 + $mi1*100 + $mi2;
+-            if ($ver < $minver) {
+-                disable('too-old-kernel', 'afalgeng');
+-            } else {
+-                push @{$config{engdirs}}, "afalg";
+-            }
+-        } else {
+-            disable('cross-compiling', 'afalgeng');
+-        }
++        push @{$config{engdirs}}, "afalg";
+     } else {
+         disable('not-linux', 'afalgeng');
+     }
+diff --git a/apps/speed.c b/apps/speed.c
+index 89bf18480f..7432224134 100644
+--- a/apps/speed.c
++++ b/apps/speed.c
+@@ -113,6 +113,8 @@
+ # define NO_FORK
+ #endif
+ 
++#include <sys/select.h>
++
+ #define MAX_MISALIGNMENT 63
+ #define MAX_ECDH_SIZE   256
+ #define MISALIGN        64
+diff --git a/crypto/conf/conf_def.c b/crypto/conf/conf_def.c
+index 31c02cc49e..4e4ca4e4ab 100644
+--- a/crypto/conf/conf_def.c
++++ b/crypto/conf/conf_def.c
+@@ -11,6 +11,7 @@
+ 
+ #include <stdio.h>
+ #include <string.h>
++#include <strings.h>
+ #include "internal/cryptlib.h"
+ #include "internal/o_dir.h"
+ #include <openssl/lhash.h>
+diff --git a/test/bntest.c b/test/bntest.c
+index 9273e86566..c4a1683305 100644
+--- a/test/bntest.c
++++ b/test/bntest.c
+@@ -10,6 +10,7 @@
+ #include <errno.h>
+ #include <stdio.h>
+ #include <string.h>
++#include <strings.h>
+ #include <ctype.h>
+ 
+ #include <openssl/bn.h>
+diff --git a/test/rsa_complex.c b/test/rsa_complex.c
+index fac581254a..1cdd823f19 100644
+--- a/test/rsa_complex.c
++++ b/test/rsa_complex.c
+@@ -14,7 +14,9 @@
+  */
+ #if defined(__STDC_VERSION__)
+ # if __STDC_VERSION__ >= 199901L
++#if !defined(__hades__)
+ #  include <complex.h>
++#endif
+ # endif
+ #endif
+ #include <openssl/rsa.h>
+diff --git a/test/ssl_test_ctx.c b/test/ssl_test_ctx.c
+index 6cdced5a16..d98baecd48 100644
+--- a/test/ssl_test_ctx.c
++++ b/test/ssl_test_ctx.c
+@@ -8,6 +8,7 @@
+  */
+ 
+ #include <string.h>
++#include <strings.h>
+ 
+ #include <openssl/e_os2.h>
+ #include <openssl/crypto.h>
+diff --git a/test/v3nametest.c b/test/v3nametest.c
+index 566472ab96..b9ddeecb97 100644
+--- a/test/v3nametest.c
++++ b/test/v3nametest.c
+@@ -8,6 +8,7 @@
+  */
+ 
+ #include <string.h>
++#include <strings.h>
+ 
+ #include <openssl/e_os2.h>
+ #include <openssl/x509.h>

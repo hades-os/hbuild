@@ -1,0 +1,33 @@
+﻿source:
+  name: libtool
+  subdir: 'ports'
+  version: '2.5.4'
+
+  git: 'https://git.savannah.gnu.org/git/libtool.git'
+  tag: 'v2.5.4'
+  tools-required:
+    - host-autoconf
+    - host-automake
+  regenerate:
+    - args: ['git', 'submodule', 'update', '--init']
+    - args: ['./bootstrap']
+    - args: ['cp',
+        '@PREFIX@/share/automake-1.16/config.sub',
+        '@THIS_SOURCE_DIR@/build-aux/']
+    - args: ['cp',
+        '@PREFIX@/share/automake-1.16/config.guess',
+        '@THIS_SOURCE_DIR@/build-aux/']
+
+tools:
+  - name: host-libtool
+    version: '2.5.4'
+    from_source: libtool
+    tools-required:
+      - host-autoconf
+      - host-automake
+    configure:
+      - args: ['@THIS_SOURCE_DIR@/configure', '--prefix=@PREFIX@']
+    compile:
+      - args: ['make', '-j@PARALLELISM@']
+    install:
+      - args: ['make', 'install']

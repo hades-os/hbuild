@@ -1,0 +1,28 @@
+diff --git a/Makefile.devel b/Makefile.devel
+index 3102ad2b..d49e74a2 100644
+--- a/Makefile.devel
++++ b/Makefile.devel
+@@ -6,8 +6,8 @@ SHELL = /bin/sh
+ MAKE = make
+ AUTOCONF = autoconf
+ AUTOHEADER = autoheader
+-AUTOMAKE = automake-1.16
+-ACLOCAL = aclocal-1.16
++AUTOMAKE = automake
++ACLOCAL = aclocal
+ GPERF = gperf
+ CC = gcc -Wall
+ CFLAGS = -O
+diff --git a/libcharset/Makefile.devel b/libcharset/Makefile.devel
+index 7a991cd5..3e0e2ca0 100644
+--- a/libcharset/Makefile.devel
++++ b/libcharset/Makefile.devel
+@@ -5,7 +5,7 @@ SHELL = /bin/sh
+ MAKE = make
+ AUTOCONF = autoconf
+ AUTOHEADER = autoheader
+-ACLOCAL = aclocal-1.16
++ACLOCAL = aclocal
+ CP = cp
+ RM = rm -f
+ 

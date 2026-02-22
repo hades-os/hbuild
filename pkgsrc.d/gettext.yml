@@ -1,0 +1,25 @@
+﻿source:
+  name: 'gettext'
+  subdir: 'ports'
+  version: '0.22.3'
+
+  url: 'https://ftp.gnu.org/pub/gnu/gettext/gettext-0.22.3.tar.gz'
+  format: 'tar.gz'
+  extract-strip: 1
+
+tools:
+  - name: host-gettext
+    version: '0.22.3'
+    from_source: gettext
+    tools-required:
+      - host-automake
+      - host-autoconf
+      - host-bison
+    configure:
+      - args:
+        - '@THIS_SOURCE_DIR@/configure'
+        - '--prefix=@PREFIX@'
+    compile:
+      - args: ['make']
+    install:
+      - args: ['make', 'install']

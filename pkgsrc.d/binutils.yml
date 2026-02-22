@@ -3,7 +3,7 @@
   subdir: 'ports'
   version: '2.45'
 
-  git: 'https://github.com/bminor/binutils-gdb'
+  git: 'https://sourceware.org/git/binutils-gdb.git'
   tag: 'binutils-2_45'
 
 tools:
@@ -14,23 +14,19 @@ tools:
       - args:
         - '@THIS_SOURCE_DIR@/configure'
         - '--prefix=@PREFIX@'
-        - '--target=@TARGET@'
-        - '--with-sysroot=@SYSROOT_DIR@'
+        - '--target=x86_64-elf'
+        - '--with-sysroot='
+        - '--disable-shared'
         - '--disable-nls'
         - '--disable-werror'
-        - '--enable-gprofng=no'
-        - '--enable-default-hash-style=gnu'
-        - '--enable-new-dtags'
-        - '--enable-multilib'
         environ:
-          CFLAGS: '-O2 -pipe'
+          CFLAGS: '-O2 -pipe'    
     compile:
       - args: ['make', '-j@PARALLELISM@']
     install:
-      - args: ['make', 'install']
-
+      - args: ['make', 'install']            
   - name: host-binutils
-    version: '2.43'
+    version: '2.45'
     from_source: binutils
     configure:
       - args:

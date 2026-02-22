@@ -1,0 +1,28 @@
+﻿source:
+  name: 'mingetty'
+  subdir: 'ports'
+  version: '1.08'
+
+  git: 'https://github.com/hades-os/mingetty.git'
+  tag: 'v1.08'
+
+packages:
+  - name: mingetty
+    version: '1.08'
+    from_source: mingetty
+    metadata:
+      summary: Console-only getty
+      description: Mingetty is a small, efficient, console-only getty for Linux. 
+       "getty opens a tty port, prompts for a login name and invokes the /bin/login command. It is normally invoked by init(8)." 
+        mingetty is a minimal getty for use on virtual consoles. Unlike the getty in the util-linux or mgetty packages, mingetty is not suitable for serial lines, which is why it's smaller.
+
+      website: 'https://salsa.debian.org/debian/mingetty'
+      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      section: utils
+    tools-required:
+      - host-gcc
+    configure:
+      - args: ['cp', '-r', '@THIS_SOURCE_DIR@/.', '@THIS_BUILD_DIR@']
+    build:
+      - args: ['make', 'CC=@TARGET@-gcc', '-j@PARALLELISM@']
+      - args: ['make', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']
