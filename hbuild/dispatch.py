@@ -225,8 +225,8 @@ class HBuildDispatch():
 
         return install_order
 
-    def consume(self, raw_body):
-        body = raw_body.decode("utf-8")
+    def consume(self, raw_body, message):
+        body = raw_body
         objects = body.split(":")
         operation = objects[0]
         if operation == "build":
@@ -264,7 +264,6 @@ class HBuildDispatch():
                 if formatted_dest not in result_nodes:
                     result_nodes.append(formatted_dest)
 
-            exchange = Exchange("hbuild-exchange", type="direct")
             with Connection(self.rabbit_url) as conn:
                 with conn.channel() as channel:
                     producer = Producer(channel)
@@ -272,9 +271,7 @@ class HBuildDispatch():
                                                    "nodes": result_nodes,
                                                    "edges": result_edges
                                                })}",
-                                     exchange=exchange,
-                                     routing_key="message_queue",
-                                     declare=[exchange])
+                                     routing_key=message.properties["reply_to"])
 
 
     def run_server(self):

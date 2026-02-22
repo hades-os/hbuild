@@ -12,5 +12,5 @@ class RobustWorker(ConsumerMixin):
 
     def on_message(self, body, message):
         if self.on_message_callback:
-            self.on_message_callback(body)
+            self.on_message_callback(body, message)
         message.ack()

@@ -80,8 +80,8 @@ class HBuildRunner():
     def run_server(self):
         self.channel.start_consuming()
 
-    def consume(self, raw_body):
-        body = raw_body.decode("utf-8")
+    def consume(self, raw_body, message):
+        body = raw_body
         objects = body.split(":")
         operation =  objects[0]
         if operation == "execute":

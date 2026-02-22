@@ -33,7 +33,7 @@ class HBuildServer(Routable):
 
         self.rabbit_url = "amqp://mq:mq@localhost:5672"
         self.exchange = Exchange("hbuild-exchange", type="direct")
-        self.queue = Queue("message_queue", exchange=self.exchange, routing_key="dispatch")
+        self.queue = Queue("dispatch", exchange=self.exchange, routing_key="dispatch")
 
         self.sql_conn = pymysql.connect(host='localhost',
                                      user='root',
@@ -88,38 +88,30 @@ class HBuildServer(Routable):
 
     @get('/api/graph')
     def get_graph(self):
-        with Connection(self.rabbit_url) as conn:
-            with conn.channel() as channel:
-                producer = Producer(channel)
-                producer.publish("graph",
-                                 exchange=self.exchange,
-                                 routing_key="message_queue",
-                                 declare=[self.exchange])
-
         graph_json = None
-        graph_is_ready = False
 
-        consumer = None
+        def graph_callback(raw_body, message):
+            nonlocal graph_json
 
-        def graph_callback(raw_body):
-            nonlocal graph_is_ready, graph_json, consumer
-
-            body = raw_body.decode("utf-8")
+            body = raw_body
             objects = body.split(":", maxsplit=1)
+
+            message.ack()
 
             operation = objects[0]
             if operation == "result_graph":
                 graph_json = objects[1]
-                graph_is_ready = True
 
-                consumer.close()
-        with Connection(self.rabbit_url) as conn:
-            with conn.channel() as channel:
-                consumer = Consumer(channel)
-                consumer.register_callback(graph_callback)
-
-        while not graph_is_ready:
-            time.sleep(1)
+        conn = Connection(self.rabbit_url)
+        reply_queue = Queue(name="amq.rabbitmq.reply-to")
+        with Consumer(conn, reply_queue, callbacks=[graph_callback], no_ack=True):
+            producer = Producer(channel=conn)
+            producer.publish("graph",
+                             exchange=self.exchange,
+                             routing_key="dispatch",
+                             declare=[self.exchange],
+                             reply_to="amq.rabbitmq.reply-to")
+            conn.drain_events()
 
         return json.loads(graph_json)
 
@@ -176,7 +168,7 @@ class HBuildServer(Routable):
                 producer = Producer(channel)
                 producer.publish(f"build:{','.join(to_build)}",
                                  exchange=self.exchange,
-                                 routing_key="message_queue",
+                                 routing_key="dispatch",
                                  declare=[self.exchange])
 
         #def execute_build():
