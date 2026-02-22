@@ -1,6 +1,7 @@
 .vscode
 
 /builds/
+/logs/
 /tools/
 /sources/
 /packages/

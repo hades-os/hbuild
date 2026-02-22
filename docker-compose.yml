@@ -1,0 +1,39 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: mq
+      RABBITMQ_DEFAULT_PASS: mq
+    configs:
+      - source: rabbitmq-plugins
+        target: /etc/rabbitmq/enabled_plugins
+    volumes:
+      - rabbitmq-lib:/var/lib/rabbitmq/
+      - rabbitmq-log:/var/log/rabbitmq
+  sql:
+    image: mysql:latest
+    container_name: sql
+    restart: always
+    ports:
+     - "3306:3306"
+    environment:
+     - MYSQL_ROOT_PASSWORD=sql
+     - MYSQL_DATABASE=sql
+    volumes:
+     - mysql-lib:/var/lib/mysql
+configs:
+  rabbitmq-plugins:
+    content: "[rabbitmq_management]."
+
+volumes:
+  rabbitmq-lib:
+    driver: local
+  rabbitmq-log:
+    driver: local
+  mysql-lib:
+    driver: local

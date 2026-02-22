@@ -1,21 +1,34 @@
+from kombu import Connection, Producer, Exchange
+from multipledispatch import dispatch
 from podman.domain.containers import Container as PodmanContainer
 
 from enum import Enum
 import multiprocessing
-import os
+import pika as mq
+
+from hbuild.config import HPackageConfig
+
+def format_lookup_name(package) -> str:
+    from .source import SourcePackage
+    from .stage import Stage
+
+    if isinstance(package, SourcePackage):
+        return f"source[{package.name}]"
+    elif isinstance(package, Stage):
+        return f"{package.package_name}[{package.name}]"
+    else:
+        return package.name
 
 class StepWorkdirType(Enum):
     CUSTOM = 1
     BUILDDIR = 2
 
 class Step:
-    def __init__(self, source_data, package):
-        source_properties = source_data
-
+    @dispatch(dict, str)
+    def __init__(self, source_properties, package_name):
+        self.package_name = package_name
         self.args: list[str] = source_properties["args"]
         self.cpu_count = multiprocessing.cpu_count()
-
-        self.package = package
 
         if "workdir" in source_properties:
             self.workdir_type = StepWorkdirType.CUSTOM
@@ -34,7 +47,16 @@ class Step:
         else:
             self.shell = False
 
-    def do_substitutions(self, system_prefix, system_targets,  sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root):
+        self.rabbit_url = "amqp://mq:mq@localhost:5672"
+
+    @dispatch(HPackageConfig, str)
+    def __init__(self, config: HPackageConfig, package_name):
+        self.config = config
+
+        self.__init__(config.pkgsrc_yml, package_name)
+
+
+    def do_substitutions(self, system_prefix, system_targets, sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root):
         replaced_args = []
         replaced_environ: dict[str, str]= {}
 
@@ -110,22 +132,39 @@ class Step:
 
         return replaced_args, replaced_environ, replaced_workdir
 
-    def exec(self, system_prefix, system_targets,  sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root, container: PodmanContainer):
-        args, environ, workdir = self.do_substitutions(system_prefix, system_targets,  sources_dir, builds_dir, source_dir,  build_dir, collect_dir, system_root)
-
-        return_code: int = None
-        response: bytes = None
-
+    def exec(self, system_prefix, system_targets,  
+            sources_dir, builds_dir, source_dir,  
+            build_dir, collect_dir, system_root, 
+            container: PodmanContainer, package_object, stage_object):
+        args, environ, workdir = self.do_substitutions(system_prefix, system_targets,  
+                                                       sources_dir, builds_dir, source_dir,  
+                                                       build_dir, collect_dir, system_root)
+        lookup_name = format_lookup_name(package_object if stage_object is None else stage_object)
+        stage_name = stage_object.name if stage_object is not None else ""
         if self.shell is True:
-            return_code, response = container.exec_run(cmd = ['/bin/bash', '-c', *args], environment = environ, workdir = workdir,
-                user='hbuild', tty=True)
+            _, mux = container.exec_run(cmd = ['/bin/bash', '-c', *args], environment = environ, workdir = workdir,
+                user='hbuild', tty=True, stream=True)
         else:
-            return_code, response = container.exec_run(cmd = args, environment = environ, workdir = workdir,
-                user='hbuild', tty=True)
+            _, mux = container.exec_run(cmd = args, environment = environ, workdir = workdir,
+                user='hbuild', tty=True, stream=True)
             
-        print(response.decode())
+        for chunk in mux:
+            decoded_chunk = chunk.decode('utf-8')
+            with Connection(self.rabbit_url) as conn:
+                with conn.channel() as channel:
+                    exchange = Exchange(lookup_name, type="direct")
+                    producer = Producer(channel)
+                    producer.publish(f"log:{lookup_name}:{stage_name}:{decoded_chunk}",
+                                     exchange=exchange,
+                                     routing_key=lookup_name,
+                                     declare=[exchange])
+
+        return_code = container.inspect()["State"]["ExitCode"]
+        package_object.last_return_status = return_code
         if return_code > 0:
-            raise Exception(f"Error running step for package {self.package.name}: exit {return_code}")
+            return Exception(f"Error running step for package {self.package_name}: exit {return_code}")
+        
+        return return_code
         
     def __str__(self):
         return f"Step: {self.environ} {self.args}: {self.workdir}"

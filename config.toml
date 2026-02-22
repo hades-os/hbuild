@@ -2,6 +2,8 @@
 schema_dir = "schemas"
 pkgsrc_dir = "pkgsrc.d"
 
+logs_dir = "logs"
+
 sources_dir = "sources"
 tools_dir = "tools"
 packages_dir = "packages"

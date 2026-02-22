@@ -74,6 +74,7 @@ RUN apt update \
 		python3-wheel \
 		python3-packaging \
 		python3-xcbgen \
+        quilt \
 		rsync \
 		ruby \
 		sassc \
