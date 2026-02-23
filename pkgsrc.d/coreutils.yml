@@ -23,7 +23,7 @@ packages:
       description: This package contains the basic utility programs needed by every operating system.
 
       website: 'https://www.gnu.org/software/coreutils/'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: core
     tools-required:
       - host-gcc

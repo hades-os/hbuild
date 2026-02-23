@@ -20,7 +20,7 @@ packages:
       description: This package provides the Bourne-Again SHell.
 
       website: 'https://tiswww.case.edu/php/chet/bash/bashtop.html'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: core
     tools-required:
       - host-autoconf

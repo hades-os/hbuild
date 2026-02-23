@@ -15,7 +15,7 @@ packages:
       description:  The GNU readline library aids in the consistency of user interface across discrete programs that need to provide a command line interface. 
 
       website: 'https://tiswww.case.edu/php/chet/readline/rltop.html'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: libs
     tools-required:
       - host-gcc

@@ -44,12 +44,6 @@ class HBuildRunner():
 
         self.rabbit_url = "amqp://mq:mq@localhost:5672"
 
-        exchange = Exchange("hbuild-exchange", type="direct")
-        queues: list[kombu.Queue] = [kombu.Queue("runners", exchange, routing_key="runners")]
-        with Connection(self.rabbit_url) as conn:
-            worker = RobustWorker(conn, queues, self.consume)
-            worker.run()
-
         self.sql_conn = pymysql.connect(host='localhost',
                                      user='root',
                                      password='sql',
@@ -58,6 +52,12 @@ class HBuildRunner():
 
         self.thread = Thread(target = self.execute_jobs)
         self.thread.start()
+
+        exchange = Exchange("hbuild-exchange", type="direct")
+        queues: list[kombu.Queue] = [kombu.Queue("runners", exchange, routing_key="runners")]
+        with Connection(self.rabbit_url) as conn:
+            worker = RobustWorker(conn, queues, self.consume)
+            worker.run()
 
     def lookup(self, name: str) -> Package | ToolPackage | SourcePackage | Stage | None:
         if (matches := re.match('source\\[(.+)]', name)) is not None:
@@ -77,9 +77,6 @@ class HBuildRunner():
         else:
             raise Exception(f"Unknown package name: {name}, sent to runner (accident?)")
 
-    def run_server(self):
-        self.channel.start_consuming()
-
     def consume(self, raw_body, message):
         body = raw_body
         objects = body.split(":")
@@ -87,9 +84,11 @@ class HBuildRunner():
         if operation == "execute":
             requested_packages = objects[1].split(",")
             resolved_packages = [self.lookup(name) for name in requested_packages]
+
             self.queue.put(HBuildJob(resolved_packages))
 
     def execute_jobs(self):
+        print("HBuild Runner ready for jobs")
         while True:
             try:
                 next_job: HBuildJob = self.queue.get()

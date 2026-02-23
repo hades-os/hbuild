@@ -28,7 +28,7 @@ packages:
       description:  The ncurses library routines are a terminal-independent method of updating character screens with reasonable optimization.
 
       website: 'https://invisible-island.net/ncurses/'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: libs
     tools-required:
       - host-gcc

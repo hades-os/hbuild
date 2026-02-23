@@ -16,7 +16,7 @@ packages:
       essential: true
 
       website: 'https://github.com/hades-os/base-files'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: core
     tools-required:
       - host-gcc

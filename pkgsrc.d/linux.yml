@@ -17,7 +17,7 @@ packages:
       description:  This package depends on the architecture-specific header files for the latest Linux kernel amd64 configuration. 
 
       website: 'https://kernel.org'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: libs
     configure:
       - args: ['cp', '-Tr', '@THIS_SOURCE_DIR@', '.']

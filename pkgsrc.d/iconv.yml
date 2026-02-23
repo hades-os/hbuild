@@ -53,7 +53,7 @@ packages:
       description: GNU charset conversion library for libc which doesn't implement it
 
       website: 'https://www.gnu.org/software/libiconv/'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: libs
     tools-required:
       - host-gcc

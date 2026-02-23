@@ -22,7 +22,7 @@ packages:
       essential: true
 
       website: 'https://www.dpkg.org'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: core
     tools-required:
       - host-gcc

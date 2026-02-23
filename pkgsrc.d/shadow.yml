@@ -23,7 +23,7 @@ packages:
       description: The package contains programs for handling passwords in a secure way.
 
       website: 'https://github.com/shadow-maint/shadow'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: utils
     tools-required:
       - host-gcc

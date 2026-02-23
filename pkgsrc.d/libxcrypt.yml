@@ -22,7 +22,7 @@ packages:
       description:  libxcrypt is a modern library for one-way hashing of passwords. It supports DES, MD5, NTHASH, SUNMD5, SHA-2-256, SHA-2-512, and bcrypt-based password hashes It provides the traditional Unix 'crypt' and 'crypt_r' interfaces, as well as a set of extended interfaces like 'crypt_gensalt'. 
 
       website: 'https://github.com/besser82/libxcrypt'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: libs
     tools-required:
       - host-autoconf

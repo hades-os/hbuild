@@ -2,7 +2,7 @@
 name = "hbuild"
 version = "0.1.0"
 description = "Hades package build system"
-authors = ["Yavuz Rao <yavuz.rao@gmail.com>"]
+authors = ["Kaye Rao <kaye.p.rao@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]

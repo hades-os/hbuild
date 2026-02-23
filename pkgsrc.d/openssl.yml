@@ -15,7 +15,7 @@ packages:
       description: This package provides the OpenSSL project's implementation of the SSL and TLS cryptographic protocols for secure communication over the Internet. 
 
       website: 'https://www.openssl.org'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: crypt
     tools-required:
       - host-gcc

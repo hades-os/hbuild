@@ -17,7 +17,7 @@ packages:
       essential: true
 
       website: 'https://github.com/managarm/mlibc'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: core
     tools-required:
       - host-pkg-config
@@ -54,7 +54,7 @@ packages:
       essential: true
 
       website: 'https://github.com/managarm/mlibc'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: core
     pkgs-required:
       - mlibc-headers

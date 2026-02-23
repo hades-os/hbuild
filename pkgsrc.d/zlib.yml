@@ -23,7 +23,7 @@ packages:
       description: This package provides some common compression and decompression functions used by various programs.
 
       website: 'https://zlib.net'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: core
     tools-required:
       - host-gcc

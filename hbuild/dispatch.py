@@ -236,9 +236,15 @@ class HBuildDispatch():
             build_indices = self.build_indices(subgraph)
             build_order = [str(self.graph[full_nodemap[idx]]) for idx in build_indices]
 
-            self.channel.basic_publish(exchange='',
-                                       routing_key='runners',
-                                       body=f"execute:{','.join(build_order)}")
+            exchange = Exchange("hbuild-exchange", type="direct")
+            with Connection(self.rabbit_url) as conn:
+                with conn.channel() as channel:
+                    producer = Producer(channel)
+                    producer.publish(f"execute:{','.join(build_order)}",
+                                     exchange=exchange,
+                                     routing_key='runners',
+                                     declare=[exchange])
+
         elif operation == "log":
             package_name = objects[1]
             stage_name = objects[2]

@@ -17,7 +17,7 @@ packages:
         mingetty is a minimal getty for use on virtual consoles. Unlike the getty in the util-linux or mgetty packages, mingetty is not suitable for serial lines, which is why it's smaller.
 
       website: 'https://salsa.debian.org/debian/mingetty'
-      maintainer: 'Yavuz Rao <racemus@hades-os.org>'
+      maintainer: 'Kaye Rao <racemus@hades-os.org>'
       section: utils
     tools-required:
       - host-gcc

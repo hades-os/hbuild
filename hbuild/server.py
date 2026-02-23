@@ -26,6 +26,13 @@ def format_lookup_name(package: SourcePackage | ToolPackage | Package | Stage) -
     else:
         return package.name
 
+def deformat_lookup_name(name: str) -> str:
+    if (matches := re.match('source\\[(.+)]', name)) is not None:
+        return matches.group(1)
+    else:
+        return name
+
+
 class HBuildServer(Routable):
     def __init__(self):
         super().__init__()
@@ -65,20 +72,21 @@ class HBuildServer(Routable):
         for package in self.registry.packages + self.registry.tools + self.registry.sources:
             if isinstance(package, ToolPackage):
                 package_list.append({
-                    "name": package.name,
+                    "name": format_lookup_name(package)
+                    ,
                     "type": "tool",
                     "stages": [
                         {
                             "stage_name": stage.name,
                             "name": f"{package.name}[{stage.name}]",
-                            "package": package.name,
+                            "package": format_lookup_name(package),
                         }
                         for stage in package.stages
                     ]
                 })
             elif isinstance(package, Package) or isinstance(package, SourcePackage):
                 package_list.append({
-                    "name": package.name,
+                    "name": format_lookup_name(package),
                     "type": "package" if isinstance(package, Package) else "source",
                 })
 
@@ -129,39 +137,39 @@ class HBuildServer(Routable):
 
     @get('/api/log/{name}')
     def get_log(self, name: str):
-        if name not in self.registry.package_names + self.registry.tool_names + self.registry.source_names + self.registry.stage_names:
+        package_name = deformat_lookup_name(name)
+        if package_name not in self.registry.package_names + self.registry.tool_names + self.registry.source_names + self.registry.stage_names:
             raise HTTPException(status_code=404, detail=f"{name} is not a system, tool, or source package")
 
-        package: Package | SourcePackage | ToolPackage = self.lookup(name)
-        logs = HBuildLog.select_logs(self.sql_conn, format_lookup_name(package), None)
-
+        logs = HBuildLog.select_logs(self.sql_conn, name, None)
         return {
             "logs": logs
         }
 
     @get('/api/status/{name}')
     def get_status(self, name: str):
-        if name not in self.registry.package_names + self.registry.tool_names + self.registry.source_names:
+        package_name = deformat_lookup_name(name)
+        if package_name not in self.registry.package_names + self.registry.tool_names + self.registry.source_names:
             raise HTTPException(status_code=404, detail=f"{name} is not a system, tool, or source package")
 
-        package: Package | SourcePackage | ToolPackage = self.lookup(name)
+        package: Package | SourcePackage | ToolPackage = self.lookup(package_name)
         return {
             "return_code": package.last_return_status if package.last_return_status is not None else 0
         }
 
     @post('/api/build', status_code=202)
-    def post_build(self, req: BuildOrder, background_tasks: BackgroundTasks) -> None:
+    def post_build(self, req: BuildOrder) -> None:
         to_build = []
         for package in req.packages:
-            if package.name in to_build:
+            package_name = deformat_lookup_name(package.name)
+            if package_name in to_build:
                 raise HTTPException(status_code=400, detail=f"Duplicate package {package.name} in build order")
-            if package.name not in self.registry.package_names + self.registry.tool_names + self.registry.source_names + self.registry.stage_names:
+            if package_name not in self.registry.package_names + self.registry.tool_names + self.registry.source_names + self.registry.stage_names:
                 raise HTTPException(status_code=404, detail=f"Package {package.name} does not exist or is not available.")
             if package.stage:
                 to_build.append(f"{package.name}[{package.stage}]")
             else:
-                lookup_name = format_lookup_name(self.lookup(package.name))
-                to_build.append(lookup_name)
+                to_build.append(package.name)
 
         with Connection(self.rabbit_url) as conn:
             with conn.channel() as channel:
@@ -170,11 +178,6 @@ class HBuildServer(Routable):
                                  exchange=self.exchange,
                                  routing_key="dispatch",
                                  declare=[self.exchange])
-
-        #def execute_build():
-        #    self.show_deps(to_build, req.build_to, dep_graph)
-        #    self.process(req.build_to, install_order, dep_graph)
-        #background_tasks.add_task(execute_build)
 
         return {
             "message": "Building packages"
